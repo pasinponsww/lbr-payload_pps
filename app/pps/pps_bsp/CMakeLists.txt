@@ -8,6 +8,7 @@ target_include_directories(pps_bsp PUBLIC
   ${CMAKE_SOURCE_DIR}/common/drivers/utils
   ${CMAKE_SOURCE_DIR}/common/core/math
   ${CMAKE_SOURCE_DIR}/common/core/periph/drv8245
+  ${CMAKE_SOURCE_DIR}/common/drivers/platform/stm32l4
 )
 
 target_link_libraries(pps_bsp PUBLIC core helpers)

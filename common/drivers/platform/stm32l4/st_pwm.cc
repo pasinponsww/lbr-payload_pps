@@ -2,7 +2,8 @@
 #include "reg_helpers.h"
 
 // Forward declaration to ensure visibility
-void SetReg(volatile uint32_t* reg, uint32_t enum_val, uint32_t bit_num, uint32_t bit_length);
+void SetReg(volatile uint32_t* reg, uint32_t enum_val, uint32_t bit_num,
+            uint32_t bit_length);
 
 namespace LBR
 {
@@ -16,12 +17,11 @@ namespace Stml4
  */
 static constexpr uint32_t pclk_freq = 4000000;
 
-
 // Bit lengths
 static constexpr uint8_t TIM_CCMRx_OCxM_BitWidth = 3;
 static constexpr uint8_t TIM_CR1_CMS_BitWidth = 2;
 static constexpr uint8_t TIM_CR1_DIR_BitWidthz = 1;
-static constexpr uint8_t TIM_CR1_DIR_BitWidth = 1; // Alias for compatibility
+static constexpr uint8_t TIM_CR1_DIR_BitWidth = 1;  // Alias for compatibility
 static constexpr uint8_t TIM_CCRx_BitWidth = 16;
 
 /**
@@ -102,8 +102,8 @@ bool HwPwm::init()
 
             // Configure output mode
             ::SetReg(&_base_addr->CCMR1,
-                   static_cast<uint32_t>(_settings.output_mode),
-                   TIM_CCMR1_OC1M_Pos, TIM_CCMRx_OCxM_BitWidth);
+                     static_cast<uint32_t>(_settings.output_mode),
+                     TIM_CCMR1_OC1M_Pos, TIM_CCMRx_OCxM_BitWidth);
 
             // Configure default duty cycle to be 0%
             _base_addr->CCR1 = _curr_duty_cycle;
@@ -117,8 +117,8 @@ bool HwPwm::init()
         case 2:
             _base_addr->CCMR1 &= ~TIM_CCMR1_CC2S_Msk;
             ::SetReg(&_base_addr->CCMR1,
-                   static_cast<uint32_t>(_settings.output_mode),
-                   TIM_CCMR1_OC2M_Pos, TIM_CCMRx_OCxM_BitWidth);
+                     static_cast<uint32_t>(_settings.output_mode),
+                     TIM_CCMR1_OC2M_Pos, TIM_CCMRx_OCxM_BitWidth);
             _base_addr->CCR2 = _curr_duty_cycle;
             _base_addr->CCMR1 |= TIM_CCMR1_OC2PE;
             _base_addr->CCER |= TIM_CCER_CC2E;
@@ -126,8 +126,8 @@ bool HwPwm::init()
         case 3:
             _base_addr->CCMR2 &= ~TIM_CCMR2_CC3S_Msk;
             ::SetReg(&_base_addr->CCMR2,
-                   static_cast<uint32_t>(_settings.output_mode),
-                   TIM_CCMR2_OC3M_Pos, TIM_CCMRx_OCxM_BitWidth);
+                     static_cast<uint32_t>(_settings.output_mode),
+                     TIM_CCMR2_OC3M_Pos, TIM_CCMRx_OCxM_BitWidth);
             _base_addr->CCR3 = _curr_duty_cycle;
             _base_addr->CCMR2 |= TIM_CCMR2_OC3PE;
             _base_addr->CCER |= TIM_CCER_CC3E;
@@ -135,8 +135,8 @@ bool HwPwm::init()
         case 4:
             _base_addr->CCMR2 &= ~TIM_CCMR2_CC4S_Msk;
             ::SetReg(&_base_addr->CCMR2,
-                   static_cast<uint32_t>(_settings.output_mode),
-                   TIM_CCMR2_OC4M_Pos, TIM_CCMRx_OCxM_BitWidth);
+                     static_cast<uint32_t>(_settings.output_mode),
+                     TIM_CCMR2_OC4M_Pos, TIM_CCMRx_OCxM_BitWidth);
             _base_addr->CCR4 = _curr_duty_cycle;
             _base_addr->CCMR2 |= TIM_CCMR2_OC4PE;
             _base_addr->CCER |= TIM_CCER_CC4E;
@@ -158,9 +158,9 @@ bool HwPwm::init()
 
     // Configure PWM mode and direction
     ::SetReg(&_base_addr->CR1, static_cast<uint32_t>(_settings.mode),
-           TIM_CR1_CMS_Pos, TIM_CR1_CMS_BitWidth);
+             TIM_CR1_CMS_Pos, TIM_CR1_CMS_BitWidth);
     ::SetReg(&_base_addr->CR1, static_cast<uint32_t>(_settings.dir),
-           TIM_CR1_DIR_Pos, TIM_CR1_DIR_BitWidth);
+             TIM_CR1_DIR_Pos, TIM_CR1_DIR_BitWidth);
 
     // Configure fixed ARR value
     _base_addr->ARR = ARR_VAL;
