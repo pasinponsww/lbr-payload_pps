@@ -1,12 +1,12 @@
 #include <cstdint>
 #include "board.h"
 #include "motor_support/dc_motor.h"
-#include "st_pwm.h"
 #include "st_encoder.h"
 #include "st_gpio.h"
 #include "st_i2c.h"
+#include "st_pwm.h"
 
-namespace LBR 
+namespace LBR
 {
 
 // UART4_TX (PA0) & UART4_RX (PA1) pin config
@@ -20,27 +20,27 @@ Stml4::StGpioSettings rx_settings{
     Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams rx_params{rx_settings, 1, GPIOA};
 
-// LMT_SWT (PA3) pin config 
+// LMT_SWT (PA3) pin config
 Stml4::StGpioSettings lmt_swt_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::PULL_UP, 0};
+    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::PULL_UP, 0};
 const Stml4::StGpioParams lmt_swt_params{lmt_swt_settings, 3, GPIOA};
 
 // Motor Driver Control Pins
 // RS_EN (PA5) pin config
 Stml4::StGpioSettings rs_en_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams rs_en_params{rs_en_settings, 5, GPIOA};
 // MTR_PWM1 (PA8) pin config
 Stml4::StGpioSettings mtr_pwm1_settings{
     Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
     Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams mtr_pwm1_params{mtr_pwm1_settings, 8, GPIOA}; 
+const Stml4::StGpioParams mtr_pwm1_params{mtr_pwm1_settings, 8, GPIOA};
 // MTR_DIR2 (PA9) pin config
 Stml4::StGpioSettings mtr_dir2_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams mtr_dir2_params{mtr_dir2_settings, 9, GPIOA};
 
 // SWDIO (PA13) & SWCLK (PA14) pin config
@@ -68,55 +68,55 @@ Stml4::StGpioSettings dbg_rx_settings{
 const Stml4::StGpioParams dbg_rx_params{dbg_rx_settings, 7, GPIOB};
 
 // ADC Pins
-// CS_PADC (PC0) 
+// CS_PADC (PC0)
 Stml4::StGpioSettings cs_padc_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams cs_padc_params{cs_padc_settings, 0, GPIOC};
 
 // Encoder Pins
 // ENC_A_L (PC4) pin config
 Stml4::StGpioSettings enc_a_l_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams enc_a_l_params{enc_a_l_settings, 4, GPIOC};
 // ENC_B_L (PC5) pin config
 Stml4::StGpioSettings enc_b_l_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams enc_b_l_params{enc_b_l_settings, 5, GPIOC};
 
-// DR_FAULT (PC6) / MTR_SLP (PC7) / DRV_Z (PC8) 
+// DR_FAULT (PC6) / MTR_SLP (PC7) / DRV_Z (PC8)
 Stml4::StGpioSettings drv_fault_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams drv_fault_params{drv_fault_settings, 6, GPIOC};
 
 Stml4::StGpioSettings mtr_slp_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams mtr_slp_params{mtr_slp_settings, 7, GPIOC};
 
 Stml4::StGpioSettings drv_z_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams drv_z_params{drv_z_settings, 8, GPIOC};
 
-// Debug LEDs 
+// Debug LEDs
 // DBG_RED (PC1) pin config
 Stml4::StGpioSettings dbg_red_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams dbg_red_params{dbg_red_settings, 1, GPIOC};
 // DBG_BLUE (PC2) pin config
 Stml4::StGpioSettings dbg_blue_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};   
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams dbg_blue_params{dbg_blue_settings, 2, GPIOC};
 // DBG_GREEN (PC3) pin config
 Stml4::StGpioSettings dbg_green_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::LOW, Stml4::GpioPupd::NO_PULL, 0};
+    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
+    Stml4::GpioPupd::NO_PULL, 0};
 const Stml4::StGpioParams dbg_green_params{dbg_green_settings, 3, GPIOC};
 
 // UART5
@@ -149,7 +149,6 @@ Stml4::HwGpio gpio_drv_fault(drv_fault_params);
 Stml4::HwGpio gpio_mtr_slp(mtr_slp_params);
 Stml4::HwGpio gpio_drv_z(drv_z_params);
 
-
 static Bno055Data imu_hw = {};
 // Use an existing GPIO as the board's main GPIO interface
 Gpio& board_gpio = gpio_lmt_swt;
@@ -163,9 +162,6 @@ Motor motor_hw{*(Drv8245*)nullptr, *(Encoder*)nullptr};
 
 // Construct the Board object with real hardware objects
 static Board board{i2c_hw, board_gpio, imu_hw, &motor_hw};
-
-
-
 
 // Forward declarations for Motor& overloads (defined in helpers)
 void motorDeploy(Motor&);
@@ -206,8 +202,5 @@ Board& get_board()
 {
     return board;
 }
-
-
-
 
 }  // namespace LBR

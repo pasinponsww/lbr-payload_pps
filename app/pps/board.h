@@ -6,17 +6,17 @@
  */
 
 #pragma once
-#include "i2c.h"
-#include "gpio.h"
 #include "bno055_imu.h"
 #include "drv8245.h"
+#include "gpio.h"
+#include "i2c.h"
 #include "motor_support/dc_motor.h"
 
 namespace LBR
 {
 
-
-struct Board {
+struct Board
+{
     I2c& i2c;
     Gpio& gpio;
     Bno055Data imu;

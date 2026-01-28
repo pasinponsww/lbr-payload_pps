@@ -14,8 +14,9 @@
  * @note Used during the Deploy state to drive the mechanism until the deployed limit switch is reached.
  * TODO: Implement DRV#### PWM logic for deployment.
  */
-namespace LBR {
+namespace LBR
+{
 void motorDeploy();
 void motorTarget();
 void motorRetract();
-}
+}  // namespace LBR

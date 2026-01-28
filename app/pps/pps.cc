@@ -1,41 +1,50 @@
 #include "pps.h"
 
+namespace LBR
+{
 
+Pps::Pps(Gpio& gpio, Motor& motor) : gpio_(gpio), motor_(motor)
+{
+}
 
-namespace LBR {
-
-Pps::Pps(Gpio& gpio, Motor& motor)
-    : gpio_(gpio), motor_(motor) {}
-
-PpsState Pps::getState() const {
+PpsState Pps::getState() const
+{
     return state_;
 }
 
-void Pps::fetchImuData(const LBR::Quaternion& data) {
+void Pps::fetchImuData(const LBR::Quaternion& data)
+{
     // Store quaternion data from IMU
     state_quat_ = data;
 }
 
-void Pps::fetchAccelData(const LBR::Vec3& data) {
+void Pps::fetchAccelData(const LBR::Vec3& data)
+{
     // Store acceleration data from IMU
     state_accel_ = data;
 }
 
-void Pps::update() {    
+void Pps::update()
+{
 
-    switch (state_) {
+    switch (state_)
+    {
         case PpsState::Idle:
             // Idle: waiting for Deploy or Retract command
-            if (deploy()) {
+            if (deploy())
+            {
                 state_ = PpsState::Deploying;
-            } else if (retracted()) {
+            }
+            else if (retracted())
+            {
                 state_ = PpsState::Retract;
             }
             break;
         case PpsState::Deploying:
             // Deploying: move to deployed position, then rotate, then return to Idle
             motorDeploy();
-            if (readLimitSwitch() == LimitSwitchState::extended) {
+            if (readLimitSwitch() == LimitSwitchState::extended)
+            {
                 motor_.motorEnable(false);
                 // After deploying, rotate
                 state_ = PpsState::Rotating;
@@ -43,8 +52,9 @@ void Pps::update() {
             break;
         case PpsState::Rotating:
             // Rotating: move to target/drill position, then return to Idle
-            motorTarget(); // Determine the target position 
-            if (rotationComplete()) {
+            motorTarget();  // Determine the target position
+            if (rotationComplete())
+            {
                 motor_.motorEnable(false);
                 state_ = PpsState::Idle;
             }
@@ -52,7 +62,8 @@ void Pps::update() {
         case PpsState::Retract:
             // Retract: move to retracted position, then return to Idle
             motorRetract();
-            if (readLimitSwitch() == LimitSwitchState::retracted) {
+            if (readLimitSwitch() == LimitSwitchState::retracted)
+            {
                 motor_.motorEnable(false);
                 state_ = PpsState::Idle;
             }
@@ -60,57 +71,70 @@ void Pps::update() {
     }
 }
 
-
-
-Pps::LimitSwitchState Pps::readLimitSwitch() {
+Pps::LimitSwitchState Pps::readLimitSwitch()
+{
     // Read limit switch state from GPIO
     // If high, extended; if low, retracted
-    if (gpio_.read()) {
+    if (gpio_.read())
+    {
         return LimitSwitchState::extended;
-    } else {
+    }
+    else
+    {
         return LimitSwitchState::retracted;
     }
 }
 
-
-bool Pps::deploy() {
-    if (!(readLimitSwitch() == LimitSwitchState::extended)) return false;
-    if (state_quat_.w != 0.0f) return true;
-    if (state_quat_.x != 0.0f) return true;
-    if (state_quat_.y != 0.0f) return true;
-    if (state_quat_.z != 0.0f) return true;
+bool Pps::deploy()
+{
+    if (!(readLimitSwitch() == LimitSwitchState::extended))
+        return false;
+    if (state_quat_.w != 0.0f)
+        return true;
+    if (state_quat_.x != 0.0f)
+        return true;
+    if (state_quat_.y != 0.0f)
+        return true;
+    if (state_quat_.z != 0.0f)
+        return true;
     return false;
 }
 
-bool Pps::retracted() {
+bool Pps::retracted()
+{
     // Use limit switch and IMU acceleration to determine if retracted
     static LBR::Vec3 prev_accel = {0, 0, 0};
-    LBR::Vec3 accel = state_accel_; 
+    LBR::Vec3 accel = state_accel_;
 
-    if (readLimitSwitch() == LimitSwitchState::retracted) {
+    if (readLimitSwitch() == LimitSwitchState::retracted)
+    {
         // Check if mechanism is moving (acceleration changed)
-        float delta = (accel.x - prev_accel.x) * (accel.x - prev_accel.x)
-                   + (accel.y - prev_accel.y) * (accel.y - prev_accel.y)
-                   + (accel.z - prev_accel.z) * (accel.z - prev_accel.z);
+        float delta = (accel.x - prev_accel.x) * (accel.x - prev_accel.x) +
+                      (accel.y - prev_accel.y) * (accel.y - prev_accel.y) +
+                      (accel.z - prev_accel.z) * (accel.z - prev_accel.z);
         prev_accel = accel;
         // If not moving (delta is small), we are truly retracted
-        if (delta < 0.01f) {
+        if (delta < 0.01f)
+        {
             return true;
         }
     }
     prev_accel = state_accel_;
     return false;
-}  
+}
 
-bool Pps::rotationComplete() {
+bool Pps::rotationComplete()
+{
     // Placeholder logic: In real implementation, use encoder or IMU feedback
     static int rotation_steps = 0;
-    const int TARGET_ROTATION_STEPS = 100; // Random threshold number (come with testing)
+    const int TARGET_ROTATION_STEPS =
+        100;  // Random threshold number (come with testing)
     rotation_steps++;
-    if (rotation_steps >= TARGET_ROTATION_STEPS) {
-        rotation_steps = 0; // Reset for next rotation
+    if (rotation_steps >= TARGET_ROTATION_STEPS)
+    {
+        rotation_steps = 0;  // Reset for next rotation
         return true;
     }
     return false;
 }
-} // namespace LBR
+}  // namespace LBR

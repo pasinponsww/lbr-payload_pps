@@ -1,37 +1,45 @@
 #include "pps_helpers.h"
-#include "motor_support/dc_motor.h"
 #include "board.h"
+#include "motor_support/dc_motor.h"
 
-namespace {
-void motorDeployImpl(LBR::Motor& motor) {
+namespace
+{
+void motorDeployImpl(LBR::Motor& motor)
+{
     motor.motorEnable(true);
-    motor.motorDirection(true); // true = deploy direction
-    motor.motorSpeed(100);      // Full speed
+    motor.motorDirection(true);  // true = deploy direction
+    motor.motorSpeed(100);       // Full speed
 }
 
-void motorTargetImpl(LBR::Motor& motor) {
+void motorTargetImpl(LBR::Motor& motor)
+{
     // Example: move to a target position (implement as needed)
     // motor.moveDegrees(target_degrees, speed);
     motor.motorEnable(true);
-    motor.motorDirection(true); // true = target direction
-    motor.motorSpeed(100);      // Full speed
+    motor.motorDirection(true);  // true = target direction
+    motor.motorSpeed(100);       // Full speed
 }
 
-void motorRetractImpl(LBR::Motor& motor) {
+void motorRetractImpl(LBR::Motor& motor)
+{
     motor.motorEnable(true);
-    motor.motorDirection(false); // false = retract direction
-    motor.motorSpeed(100);       // Full speed reverse
+    motor.motorDirection(false);  // false = retract direction
+    motor.motorSpeed(100);        // Full speed reverse
 }
-} // LBR namespace
+}  // namespace
 
-namespace LBR {
-void motorDeploy() {
+namespace LBR
+{
+void motorDeploy()
+{
     motorDeployImpl(*get_board().motor);
 }
-void motorTarget() {
+void motorTarget()
+{
     motorTargetImpl(*get_board().motor);
 }
-void motorRetract() {
+void motorRetract()
+{
     motorRetractImpl(*get_board().motor);
 }
-} // namespace LBR
+}  // namespace LBR

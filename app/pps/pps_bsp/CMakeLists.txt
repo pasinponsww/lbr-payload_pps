@@ -10,6 +10,7 @@ target_include_directories(pps_bsp PUBLIC
   ${CMAKE_SOURCE_DIR}/common/core/periph/drv8245
   ${CMAKE_SOURCE_DIR}/common/drivers/platform/stm32l4
   ${CMAKE_SOURCE_DIR}/mcu_support/stm32/l4xx
+  ${CMAKE_SOURCE_DIR}/mcu_support/CMSIS/include
 )
 
-target_link_libraries(pps_bsp PUBLIC core helpers st_l4_support)
+target_link_libraries(pps_bsp PUBLIC core helpers st_l4_support cmsis)
