@@ -3,21 +3,22 @@
  * @file pps.h
  * @brief Payload positioning state machine
  * @note Sequence: Standby -> Flight -> Deploying -> Holding, with Retracting
- *       back to stow. The axis runs between two limit switches: the encoder
- *       closes the loop on the expected travel and the switch at each end
- *       confirms arrival. A fault in any moving state goes through Recovery,
- *       which retries, falls back to retracting, or latches Safed.
+ *       back to stow. This class only sequences: motion lives in Travel,
+ *       fault handling in Fdir and Recovery, flight detection in
+ *       FlightDetector. Every transition is gated by the sensor frame.
  * @author Bex Saw
  * @date 2026/01/05
  */
 
 #include <cstdint>
-#include "control/pid.h"
+#include <string_view>
+#include "control/travel.h"
 #include "fdir/fdir.h"
-#include "gpio.h"
-#include "imu_math.h"
+#include "fdir/recovery.h"
 #include "motor_support/dc_motor.h"
 #include "pps_config.h"
+#include "sensor/flight_detector.h"
+#include "sensor/sensor_frame.h"
 
 namespace LBR
 {
@@ -40,19 +41,7 @@ enum class PpsCommand : uint8_t
     Deploy,   ///< Standby/Flight -> Deploying, skipping flight detection
     Retract,  ///< drive to the retracted switch
     Abort,    ///< any state -> Safed
-    Reset     ///< Safed -> Standby, clears the latched fault
-};
-
-/**
- * @struct PpsInputs
- * @brief Sensor snapshot handed to the state machine every control tick
- */
-struct PpsInputs
-{
-    uint32_t now_ms{0};
-    bool imu_valid{false};
-    Vec3 accel{};  ///< m/s^2, gravity included
-    Vec3 gyro{};   ///< rad/s
+    Reset     ///< Safed -> Standby, clears the recorded fault
 };
 
 /**
@@ -62,7 +51,7 @@ struct PpsInputs
 struct PpsStatus
 {
     PpsState state;
-    Fault fault;
+    Fault fault;       ///< most recent fault, None after a reset
     int32_t position;  ///< counts from the retracted switch
     int32_t target;    ///< counts from the retracted switch
     int duty;
@@ -75,106 +64,76 @@ class Pps
 {
 public:
     /**
-     * @param motor axis actuator, already initialised
-     * @param retracted_switch reads true while the mechanism is fully stowed
-     * @param extended_switch reads true while the mechanism is fully deployed
+     * @brief Build the state machine
+     * @param motor axis actuator, already initialised, must outlive this
+     * @param config mission configuration
+     * @note Starts in Standby with the driver asleep.
      */
-    Pps(Motor& motor, Gpio& retracted_switch, Gpio& extended_switch,
-        const PpsConfig& config = {});
+    Pps(Motor& motor, const PpsConfig& config);
 
     /**
      * @brief Queue a command for the next step
+     * @param command request to apply
      * @return false if the current state does not allow it
+     * @note Only one command is kept; a newer one replaces it.
      */
     bool command(PpsCommand command);
 
-    /** @brief Run one control tick */
-    void step(const PpsInputs& inputs);
+    /**
+     * @brief Run one control tick
+     * @param frame sensor frame of this tick
+     */
+    void step(const SensorFrame& frame);
 
-    /** @brief true while the state machine is using IMU data */
+    /**
+     * @brief Tell whether the next frame needs IMU data
+     * @return true in Standby and Flight, the only states that use it
+     */
     bool wants_imu() const;
 
+    /**
+     * @brief Snapshot for telemetry
+     * @return current state, fault, position and switch readings
+     */
     PpsStatus status() const;
 
 private:
-    /**
-     * @brief Tracks how long a condition has been continuously true
-     */
-    struct Dwell
-    {
-        bool running{false};
-        uint32_t since_ms{0};
-
-        bool held(bool condition, uint32_t now_ms, uint32_t for_ms);
-    };
-
-    /**
-     * @brief Debounced limit switch
-     */
-    struct LimitSwitch
-    {
-        Gpio& pin;
-        bool closed{false};
-        Dwell change{};
-
-        void sample(uint32_t now_ms, uint32_t debounce_ms);
-    };
-
-    enum class RecoveryPhase : uint8_t
-    {
-        Quiesce,
-        Unjam,
-        Verify
-    };
-
     void enter(PpsState next);
     void fail(Fault fault);
     void apply_command();
     bool accepts(PpsCommand command) const;
     void begin_deploy();
-    bool actuate(int duty);
-    bool is_moving() const;
-    uint32_t elapsed(uint32_t since_ms) const;
+    Fault monitor();
 
-    void run_standby(const PpsInputs& inputs);
-    void run_flight(const PpsInputs& inputs);
+    void run_standby();
+    void run_flight();
     void run_deploying();
     void run_holding();
     void run_retracting();
     void run_recovery();
 
     Motor& motor_;
-    LimitSwitch retracted_;
-    LimitSwitch extended_;
     PpsConfig config_;
-    Pid controller_;
+    Travel travel_;
     Fdir fdir_;
+    Recovery recovery_;
+    FlightDetector flight_;
 
     PpsState state_{PpsState::Standby};
     PpsState resume_{PpsState::Standby};
     PpsCommand pending_{PpsCommand::None};
-    RecoveryPhase phase_{RecoveryPhase::Quiesce};
-
-    uint32_t now_ms_{0};
+    SensorFrame frame_{};
     uint32_t last_step_ms_{0};
-    uint32_t state_ms_{0};
-    uint32_t phase_ms_{0};
     float dt_s_{0.0f};
-
-    int32_t travel_counts_{0};
-    int32_t stow_{0};
-    int32_t hold_position_{0};
-    int unjam_direction_{0};
-    bool referenced_{false};
-    bool seeking_{false};
-    bool actuator_failed_{false};
     bool deploy_after_stow_{false};
     bool stow_fallback_used_{false};
-
-    Dwell condition_{};
 };
 
-/** @brief Short printable name of a state */
-const char* to_string(PpsState state);
+/**
+ * @brief Printable name of a state
+ * @param state value to name
+ * @return short lower-case name, valid for the life of the program
+ */
+std::string_view to_string(PpsState state);
 
 }  // namespace LBR

@@ -17,6 +17,11 @@ namespace LBR
 class Motor
 {
 public:
+    /**
+     * @brief Build the actuator
+     * @param drv motor driver, must outlive this object
+     * @param encoder position feedback, must outlive this object
+     */
     Motor(Drv8245& drv, Encoder& encoder);
 
     /**
@@ -34,27 +39,40 @@ public:
 
     /**
      * @brief Release the bridge (Hi-Z) and put the driver to sleep
-     * @note A sleep/wake cycle also clears latched driver faults.
      * @return true if the driver accepted every step of the command
+     * @note A sleep/wake cycle also clears latched driver faults.
      */
     bool standby();
 
     /**
      * @brief Accumulate encoder movement, call once per control tick
-     * @note Wrap-safe for 16-bit counters as long as a tick moves < 32768 counts.
+     * @note Wrap-safe for 16-bit counters as long as a tick moves fewer
+     *       than 32768 counts.
      */
     void sample();
 
-    /** @brief Accumulated position in encoder counts since init */
+    /**
+     * @brief Accumulated position
+     * @return encoder counts since init(), as of the last sample()
+     */
     int32_t position() const;
 
-    /** @brief Last commanded signed duty */
+    /**
+     * @brief Last commanded duty
+     * @return signed duty, 0 while braked or in standby
+     */
     int duty() const;
 
-    /** @brief true while the driver asserts nFAULT */
+    /**
+     * @brief Driver fault line
+     * @return true while the driver is awake and asserts nFAULT
+     */
     bool driver_fault() const;
 
-    /** @brief true if the encoder reports an error */
+    /**
+     * @brief Encoder health
+     * @return true if the encoder reports an error
+     */
     bool encoder_fault() const;
 
 private:

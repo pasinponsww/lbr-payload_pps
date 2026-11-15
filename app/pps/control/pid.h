@@ -29,9 +29,17 @@ struct PidGains
 class Pid
 {
 public:
+    /**
+     * @brief Build a loop
+     * @param gains tuning values
+     */
     explicit Pid(const PidGains& gains);
 
-    /** @brief Select a new setpoint and clear the loop history */
+    /**
+     * @brief Select a new setpoint and clear the loop history
+     * @param target setpoint in counts
+     * @param position current position, seeds the speed estimate
+     */
     void set_target(int32_t target, int32_t position);
 
     /**
@@ -39,13 +47,22 @@ public:
      * @param position measured position in counts
      * @param dt_s time since the previous update in seconds
      * @return signed duty in -max_duty..max_duty, 0 inside the tolerance band
+     * @note Outside the band the output is never smaller than min_duty, so
+     *       the motor does not sit stalled just short of the target.
      */
     int update(int32_t position, float dt_s);
 
-    /** @brief true when the position is inside the tolerance band */
+    /**
+     * @brief Compare a position with the setpoint
+     * @param position measured position in counts
+     * @return true when the position is inside the tolerance band
+     */
     bool on_target(int32_t position) const;
 
-    /** @brief Current setpoint in counts */
+    /**
+     * @brief Current setpoint
+     * @return setpoint in counts
+     */
     int32_t target() const;
 
 private:

@@ -9,14 +9,15 @@
  */
 
 #include <cstdint>
+#include <string_view>
 
 namespace LBR
 {
 
 enum class Fault : uint8_t
 {
-    None = 0,
-    DriverFault,     ///< DRV8245 nFAULT asserted
+    None,
+    DriverFault,     ///< DRV8245 nFAULT asserted or a motor command rejected
     EncoderFault,    ///< encoder reports an error, position is untrusted
     Stall,           ///< driven but the encoder is not moving
     WrongDirection,  ///< encoder moves against the commanded direction
@@ -26,7 +27,7 @@ enum class Fault : uint8_t
 
 enum class Response : uint8_t
 {
-    Retry = 0,     ///< back off, clear the fault, resume the interrupted motion
+    Retry,     ///< back off, clear the fault, resume the interrupted motion
     Fallback,  ///< give up on the goal and go to the safer one
     Safe       ///< stop driving and latch until reset
 };
@@ -61,38 +62,65 @@ struct MotionSample
 class Fdir
 {
 public:
+    /**
+     * @brief Build the monitor
+     * @param config detection thresholds and retry policy
+     */
     explicit Fdir(const FdirConfig& config);
 
     /**
      * @brief Start supervising a motion
+     * @param now_ms current time, start of the budget
+     * @param position position at the start of the motion
      * @param budget_ms time the motion is allowed to take
      */
     void arm(uint32_t now_ms, int32_t position, uint32_t budget_ms);
 
     /**
      * @brief Detection: evaluate one sample of the supervised motion
+     * @param sample snapshot of the axis this tick
      * @return the first fault found, Fault::None when healthy
+     * @note Stall and wrong-direction are only judged while the motor is
+     *       driven at stall_min_duty or more.
      */
     Fault monitor(const MotionSample& sample);
 
     /**
      * @brief Isolation and policy: record the fault and pick the response
+     * @param fault fault to handle
+     * @return Safe for faults that make motion untrustworthy, Fallback for a
+     *         limit mismatch or once retries are used up, otherwise Retry
+     * @note A Retry consumes one retry of the current goal.
      */
     Response respond(Fault fault);
 
-    /** @brief Quiet time to wait before the current retry */
+    /**
+     * @brief Quiet time to wait before the current retry
+     * @return backoff in milliseconds, doubled for every retry already used
+     */
     uint32_t backoff_ms() const;
 
-    /** @brief Forget retry history after a goal succeeds or changes */
+    /**
+     * @brief Forget retry history after a goal succeeds or changes
+     * @note The last fault stays recorded.
+     */
     void clear_retries();
 
-    /** @brief Clear retries and the latched fault */
+    /**
+     * @brief Clear retries and the recorded fault
+     */
     void reset();
 
-    /** @brief Most recent fault, kept until reset */
+    /**
+     * @brief Most recent fault
+     * @return the fault last passed to respond(), None after reset()
+     */
     Fault last_fault() const;
 
-    /** @brief Retries spent on the current goal */
+    /**
+     * @brief Retries spent on the current goal
+     * @return number of retries since the last clear
+     */
     uint8_t retries() const;
 
 private:
@@ -106,7 +134,11 @@ private:
     int32_t reverse_travel_{0};
 };
 
-/** @brief Short printable name of a fault */
-const char* to_string(Fault fault);
+/**
+ * @brief Printable name of a fault
+ * @param fault value to name
+ * @return short lower-case name, valid for the life of the program
+ */
+std::string_view to_string(Fault fault);
 
 }  // namespace LBR

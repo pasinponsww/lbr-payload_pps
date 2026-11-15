@@ -1,9 +1,19 @@
 add_library(pps STATIC
     pps.cc
-    control/pid.cc
-    fdir/fdir.cc
-    motor_support/dc_motor.cc
     console/console.cc
+    console/line_builder.cc
+    control/pid.cc
+    control/travel.cc
+    fdir/fdir.cc
+    fdir/recovery.cc
+    motor_support/dc_motor.cc
+    sensor/debounced_input.cc
+    sensor/dwell.cc
+    sensor/flight_detector.cc
+    sensor/sensor_manager.cc
+    task/control_task.cc
+    task/indicator_task.cc
+    task/rtask.cc
 )
 
 target_include_directories(pps PUBLIC
@@ -11,7 +21,7 @@ target_include_directories(pps PUBLIC
     ${CMAKE_SOURCE_DIR}/common/core/math
 )
 
-target_link_libraries(pps PUBLIC drv8245 driver)
+target_link_libraries(pps PUBLIC drv8245 bno055 driver)
 
 if (TARGET_DEVICE STREQUAL "NATIVE")
     add_subdirectory(sim)

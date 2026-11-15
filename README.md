@@ -48,16 +48,22 @@ Deploying / Retracting --fault--> Recovery --> retry | retract (fallback) | Safe
 
 | Path | Contents |
 | --- | --- |
-| `app/pps/pps.*` | payload state machine |
-| `app/pps/pps_config.h` | every mission constant and tuning value |
-| `app/pps/fdir/` | fault detection and recovery policy |
-| `app/pps/control/` | PID position loop |
+| `app/pps/main.cc` | board bring-up, then `rtask.spin()` forever |
+| `app/pps/task/` | `Rtask` owns the application and runs the control and indicator tasks every 10 ms |
+| `app/pps/sensor/` | `SensorManager` reads every sensor into one frame per tick; debounce and flight detection |
+| `app/pps/pps.*` | payload state machine, sequencing only |
+| `app/pps/control/` | `Travel` (motion between the limit switches) and the PID loop |
+| `app/pps/fdir/` | fault detection and policy, and the recovery sequence |
 | `app/pps/motor_support/` | DC motor actuator with encoder feedback |
 | `app/pps/console/` | serial command console |
+| `app/pps/pps_config.h` | every mission constant and tuning value |
 | `app/pps/pps_bsp/` | pin map and hardware bring-up for the L476 board |
 | `app/pps/sim/` | PC simulator of the mechanism |
 | `tools/ppsctl/` | command-line tool (Rust) |
 | `xtask/` | `cargo xtask` build, flash and control tasks |
+
+Nothing is allocated from the heap: the board objects are static, and one
+static `Rtask` holds the rest of the application.
 
 ## Commanding the payload
 

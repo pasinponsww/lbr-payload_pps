@@ -29,64 +29,75 @@ constexpr uint8_t kAfTim1 = 1;
 constexpr uint8_t kAfI2c1 = 4;
 constexpr uint8_t kAfUsart1 = 7;
 
-StGpioParams input(GPIO_TypeDef* port, uint8_t pin, GpioPupd pull)
+/**
+ * Pin parameter presets used by this board
+ */
+struct Pins
 {
-    return {{GpioMode::INPUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW, pull, 0},
+    static StGpioParams input(GPIO_TypeDef* port, uint8_t pin, GpioPupd pull)
+    {
+        return {
+            {GpioMode::INPUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW, pull, 0},
             pin,
             port};
-}
+    }
 
-StGpioParams active_low_input(GPIO_TypeDef* port, uint8_t pin)
-{
-    StGpioParams params = input(port, pin, GpioPupd::PULL_UP);
-    params.active_low = true;
-    return params;
-}
+    static StGpioParams active_low_input(GPIO_TypeDef* port, uint8_t pin)
+    {
+        StGpioParams params = input(port, pin, GpioPupd::PULL_UP);
+        params.active_low = true;
+        return params;
+    }
 
-StGpioParams output(GPIO_TypeDef* port, uint8_t pin)
-{
-    return {{GpioMode::GPOUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW,
-             GpioPupd::NO_PULL, 0},
-            pin,
-            port};
-}
+    static StGpioParams output(GPIO_TypeDef* port, uint8_t pin)
+    {
+        return {{GpioMode::GPOUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW,
+                 GpioPupd::NO_PULL, 0},
+                pin,
+                port};
+    }
 
-StGpioParams alternate(GPIO_TypeDef* port, uint8_t pin, uint8_t af,
-                       GpioOtype otype = GpioOtype::PUSH_PULL,
-                       GpioPupd pull = GpioPupd::NO_PULL)
-{
-    return {{GpioMode::ALT_FUNC, otype, GpioOspeed::HIGH, pull, af}, pin, port};
-}
+    static StGpioParams alternate(GPIO_TypeDef* port, uint8_t pin, uint8_t af,
+                                  GpioOtype otype = GpioOtype::PUSH_PULL,
+                                  GpioPupd pull = GpioPupd::NO_PULL)
+    {
+        return {
+            {GpioMode::ALT_FUNC, otype, GpioOspeed::HIGH, pull, af}, pin, port};
+    }
+};
 
 // Limit switches, closed to ground: extended LMT_SWT (PA3), retracted (PA5)
-Stml4::HwGpio limit_extended(active_low_input(GPIOA, 3));
-Stml4::HwGpio limit_retracted(active_low_input(GPIOA, 5));
+Stml4::HwGpio limit_extended(Pins::active_low_input(GPIOA, 3));
+Stml4::HwGpio limit_retracted(Pins::active_low_input(GPIOA, 5));
 
 // Motor driver: MTR_PWM1 (PA8, TIM1_CH1), MTR_DIR2 (PA9), DR_FAULT (PC6), MTR_SLP (PC7), DRV_Z (PC8)
-Stml4::HwGpio gpio_mtr_pwm1(alternate(GPIOA, 8, kAfTim1));
-Stml4::HwGpio gpio_mtr_dir2(output(GPIOA, 9));
-Stml4::HwGpio gpio_drv_fault(input(GPIOC, 6, GpioPupd::PULL_UP));
-Stml4::HwGpio gpio_mtr_slp(output(GPIOC, 7));
-Stml4::HwGpio gpio_drv_z(output(GPIOC, 8));
+Stml4::HwGpio gpio_mtr_pwm1(Pins::alternate(GPIOA, 8, kAfTim1));
+Stml4::HwGpio gpio_mtr_dir2(Pins::output(GPIOA, 9));
+Stml4::HwGpio gpio_drv_fault(Pins::input(GPIOC, 6, GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_mtr_slp(Pins::output(GPIOC, 7));
+Stml4::HwGpio gpio_drv_z(Pins::output(GPIOC, 8));
 
 // Spare output: CS_PADC (PC0)
-Stml4::HwGpio gpio_cs_padc(output(GPIOC, 0));
+Stml4::HwGpio gpio_cs_padc(Pins::output(GPIOC, 0));
 
 // Debug LEDs: DBG_RED (PC1), DBG_BLUE (PC2), DBG_GREEN (PC3)
-Stml4::HwGpio gpio_dbg_red(output(GPIOC, 1));
-Stml4::HwGpio gpio_dbg_blue(output(GPIOC, 2));
-Stml4::HwGpio gpio_dbg_green(output(GPIOC, 3));
+Stml4::HwGpio gpio_dbg_red(Pins::output(GPIOC, 1));
+Stml4::HwGpio gpio_dbg_blue(Pins::output(GPIOC, 2));
+Stml4::HwGpio gpio_dbg_green(Pins::output(GPIOC, 3));
 
 // Console: DBG_USART_TX (PB6), DBG_USART_RX (PB7) on USART1
-Stml4::HwGpio gpio_dbg_tx(alternate(GPIOB, 6, kAfUsart1));
-Stml4::HwGpio gpio_dbg_rx(alternate(GPIOB, 7, kAfUsart1, GpioOtype::PUSH_PULL,
-                                    GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_dbg_tx(Pins::alternate(GPIOB, 6, kAfUsart1));
+Stml4::HwGpio gpio_dbg_rx(Pins::alternate(GPIOB, 7, kAfUsart1,
+                                          GpioOtype::PUSH_PULL,
+                                          GpioPupd::PULL_UP));
 
 // IMU bus: I2C1 SCL (PB8), SDA (PB9)
-Stml4::HwGpio gpio_i2c_scl(alternate(GPIOB, 8, kAfI2c1, GpioOtype::OPEN_DRAIN,
-                                     GpioPupd::PULL_UP));
-Stml4::HwGpio gpio_i2c_sda(alternate(GPIOB, 9, kAfI2c1, GpioOtype::OPEN_DRAIN,
-                                     GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_i2c_scl(Pins::alternate(GPIOB, 8, kAfI2c1,
+                                           GpioOtype::OPEN_DRAIN,
+                                           GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_i2c_sda(Pins::alternate(GPIOB, 9, kAfI2c1,
+                                           GpioOtype::OPEN_DRAIN,
+                                           GpioPupd::PULL_UP));
 
 Stml4::HwClock clock;
 
@@ -97,8 +108,8 @@ Stml4::HwPwm motor_pwm({TIM1,
                          Stml4::PwmDir::UPCOUNTING}});
 
 // Encoder: ENC_A_L (PC4), ENC_B_L (PC5)
-Stml4::HwEncoder encoder({input(GPIOC, 4, GpioPupd::NO_PULL),
-                          input(GPIOC, 5, GpioPupd::NO_PULL), false});
+Stml4::HwEncoder encoder({Pins::input(GPIOC, 4, GpioPupd::NO_PULL),
+                          Pins::input(GPIOC, 5, GpioPupd::NO_PULL), false});
 
 Drv8245 motor_driver(gpio_mtr_dir2, motor_pwm, gpio_drv_z, gpio_mtr_slp,
                      gpio_drv_fault);
@@ -109,8 +120,10 @@ Stml4::HwUsart console_uart({USART1, kPclkHz, kConsoleBaud});
 Stml4::HwI2c i2c({I2C1, kI2cTiming});
 Bno055 imu(i2c);
 
-Board board{motor,        limit_retracted, limit_extended, console_uart,
-            gpio_dbg_red, gpio_dbg_green,  gpio_dbg_blue};
+Board board{motor,
+            {limit_retracted, limit_extended, imu},
+            console_uart,
+            {gpio_dbg_red, gpio_dbg_green, gpio_dbg_blue}};
 }  // namespace
 
 bool bsp_init()
@@ -153,7 +166,7 @@ bool bsp_init()
     return ok;
 }
 
-Board& get_board()
+const Board& get_board()
 {
     return board;
 }
@@ -161,18 +174,6 @@ Board& get_board()
 uint32_t millis()
 {
     return HAL_GetTick();
-}
-
-bool read_imu(Vec3& accel, Vec3& gyro)
-{
-    Bno055Data data{};
-    if (!imu.read_all(data))
-    {
-        return false;
-    }
-    accel = data.accel;
-    gyro = data.gyro;
-    return true;
 }
 
 }  // namespace LBR

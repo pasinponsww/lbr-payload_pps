@@ -103,7 +103,7 @@ uint8_t Fdir::retries() const
     return retries_;
 }
 
-const char* to_string(Fault fault)
+std::string_view to_string(Fault fault)
 {
     switch (fault)
     {

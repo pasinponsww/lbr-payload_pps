@@ -19,6 +19,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include "pps.h"
 #include "uart.h"
 
@@ -28,19 +29,49 @@ namespace LBR
 class Console
 {
 public:
+    /**
+     * @brief Build the console
+     * @param uart byte stream to the operator, must outlive this object
+     * @param pps state machine to command and report on
+     */
     Console(Uart& uart, Pps& pps);
 
     /**
-     * @brief Handle received bytes and send due telemetry, call every tick
+     * @brief Handle received bytes and send due telemetry
+     * @param now_ms current time
+     * @note Call once per control tick, after the state machine has stepped.
      */
     void poll(uint32_t now_ms);
 
 private:
-    static constexpr size_t kLineSize = 32;
+    /**
+     * @struct Entry
+     * @brief Console word and the command it sends
+     */
+    struct Entry
+    {
+        std::string_view name;
+        PpsCommand command;
+    };
 
-    void execute(const char* line);
-    bool report(const char* kind);
-    bool reply(const char* prefix, const char* text);
+    static constexpr size_t kLineSize = 32;
+    static constexpr std::string_view kStreamPrefix = "stream ";
+    static constexpr std::string_view kHelp =
+        "help launch deploy retract abort reset status stream <ms>";
+    static constexpr std::array<Entry, 5> kCommands = {{
+        {"launch", PpsCommand::Launch},
+        {"deploy", PpsCommand::Deploy},
+        {"retract", PpsCommand::Retract},
+        {"abort", PpsCommand::Abort},
+        {"reset", PpsCommand::Reset},
+    }};
+
+    void receive(char c);
+    bool execute(std::string_view line);
+    bool send_command(const Entry& entry);
+    bool set_stream(std::string_view argument);
+    bool report(std::string_view kind);
+    bool reply(std::string_view prefix, std::string_view text);
 
     Uart& uart_;
     Pps& pps_;
