@@ -1,30 +1,48 @@
 /**
  * @file board.h
- * @brief PPS driver interface
+ * @brief Hardware the PPS application needs, provided by the board support
+ *        package (see pps_bsp/l476_board.cc)
  * @author Bex Saw
  * @date 1/13/2026
  */
 
 #pragma once
-#include "bno055_imu.h"
-#include "drv8245.h"
+#include <cstdint>
 #include "gpio.h"
-#include "i2c.h"
+#include "imu_math.h"
 #include "motor_support/dc_motor.h"
+#include "uart.h"
 
 namespace LBR
 {
 
 struct Board
 {
-    I2c& i2c;
-    Gpio& gpio;
-    Bno055Data imu;
-    Motor* motor;
+    Motor& motor;
+    Gpio& limit_retracted;
+    Gpio& limit_extended;
+    Uart& console;
+    Gpio& led_red;
+    Gpio& led_green;
+    Gpio& led_blue;
 };
 
-// Implementations are platform-specific (see l476_board.cc)
+/**
+ * @brief Bring up clocks, pins, peripherals and devices
+ * @return true if every device initialised
+ */
 bool bsp_init();
+
+/** @brief Board hardware, valid after bsp_init() */
 Board& get_board();
+
+/** @brief Milliseconds since boot, wraps after ~49 days */
+uint32_t millis();
+
+/**
+ * @brief Read acceleration (m/s^2) and angular rate (rad/s) from the IMU
+ * @return true if the read succeeded
+ */
+bool read_imu(Vec3& accel, Vec3& gyro);
 
 }  // namespace LBR
