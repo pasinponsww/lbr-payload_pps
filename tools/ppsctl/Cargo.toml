@@ -1,0 +1,9 @@
+[package]
+name = "ppsctl"
+version = "0.1.0"
+edition = "2021"
+description = "Command-line control for the payload positioning system"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+serialport = { version = "4", default-features = false }
