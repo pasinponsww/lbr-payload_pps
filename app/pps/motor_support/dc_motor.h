@@ -1,16 +1,15 @@
 #pragma once
 /**
  * @file dc_motor.h
- * @brief Abstract motor interface for DC motors + encoder feedback
- * @note Motor interface functions to control motor actions.
+ * @brief Brushed DC motor actuator with encoder position feedback
+ * @note Non-blocking: every call returns immediately, the caller owns timing.
  * @author Bex Saw
  * @date 2025/12/31
  */
 
-#include "delay.h"
-#include "drv8245.h"  //PPS motor driver
+#include <cstdint>
+#include "drv8245.h"
 #include "encoder.h"
-/* #include "drv8874.h" - Auger motor driver */
 
 namespace LBR
 {
@@ -19,63 +18,52 @@ class Motor
 {
 public:
     Motor(Drv8245& drv, Encoder& encoder);
-    ~Motor();
 
     /**
-	 * @brief Initialize motor driver and encoder
-	 * @return true if successful, false otherwise
-	 */
-    virtual bool init();
+     * @brief Wake the driver with zero duty and latch the encoder reference
+     * @return true if the driver accepted the setup and the encoder is healthy
+     */
+    bool init();
 
     /**
-	* @brief Stop or enable the motor (PWM control)
-	* @param enable true to enable, false to stop
-	* @note PWM duty cycle to 0/1 and brakes/start the motor
-	*/
-    virtual void motorEnable(bool enable);
+     * @brief Apply a signed duty cycle, waking the driver if needed
+     * @param duty -100..100, sign selects direction, 0 brakes
+     * @return true if the driver accepted every step of the command
+     */
+    bool drive(int duty);
 
     /**
-	* @brief Set motor speed and direction
-	* @param speed Speed value from -100 to 100 (negative for reverse)
-	* @note PWM duty cycle at |speed|%, direction based on sign
-	*/
-    virtual void motorSpeed(int speed);
+     * @brief Release the bridge (Hi-Z) and put the driver to sleep
+     * @note A sleep/wake cycle also clears latched driver faults.
+     * @return true if the driver accepted every step of the command
+     */
+    bool standby();
 
     /**
-	* @brief Set motor direction (PWM direction)
-	* @param forward true for forward, false for reverse
-	* @note Sets direction pin accordingly
-	*/
-    virtual void motorDirection(bool forward);
+     * @brief Accumulate encoder movement, call once per control tick
+     * @note Wrap-safe for 16-bit counters as long as a tick moves < 32768 counts.
+     */
+    void sample();
 
-    /**
-	* @brief Move motor a specific number of degrees at given speed (encoder feedback)
-	* @param degrees Number of degrees to move (positive or negative)
-	* @param speed Speed value from 0 to 100
-	* @note Uses encoder feedback to move specified degrees
-	*/
-    virtual void moveDegrees(int degrees, int speed);
+    /** @brief Accumulated position in encoder counts since init */
+    int32_t position() const;
 
-    /**
-	* @brief Get current encoder ticks
-	* @param ticks Reference to store current encoder ticks
-	* @note Retrieves the current tick count from the encoder
-	*/
-    virtual int getTicks() const;
+    /** @brief Last commanded signed duty */
+    int duty() const;
 
-    /**
-	* @brief Get driver status
-	* @param status Variable to store status code
-	* @return 0 for OK, nonzero for error
-	*/
-    virtual int getStatus() const;
+    /** @brief true while the driver asserts nFAULT */
+    bool driver_fault() const;
+
+    /** @brief true if the encoder reports an error */
+    bool encoder_fault() const;
 
 private:
-    Drv8245& _drv;
-    Encoder& _encoder;
-
-    bool _initialized{false};
-    int _status{0};  // 0 = OK, nonzero = error code
+    Drv8245& drv_;
+    Encoder& encoder_;
+    int32_t position_{0};
+    uint16_t last_raw_{0};
+    int duty_{0};
+    bool awake_{false};
 };
 
 }  // namespace LBR

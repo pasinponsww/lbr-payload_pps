@@ -5,100 +5,78 @@
 namespace LBR
 {
 
-Motor::Motor(Drv8245& drv, Encoder& encoder) : _drv(drv), _encoder(encoder)
-{
-}
-
-Motor::~Motor()
+Motor::Motor(Drv8245& drv, Encoder& encoder) : drv_(drv), encoder_(encoder)
 {
 }
 
 bool Motor::init()
 {
-    // Initialize driver
-    _drv.init();
-    _initialized = true;
-    return true;
+    bool ok = drv_.set_speed(0);
+    ok = drv_.init() && ok;
+    awake_ = true;
+    duty_ = 0;
+    position_ = 0;
+    last_raw_ = static_cast<uint16_t>(encoder_.get_ticks());
+    return ok && !encoder_fault();
 }
 
-void Motor::motorEnable(bool enable)
+bool Motor::drive(int duty)
 {
-    if (enable)
+    duty = std::clamp(duty, -100, 100);
+    bool ok = true;
+    if (!awake_)
     {
-        _drv.setSleep(false);  // Wake up driver (enable)
+        ok = drv_.set_speed(0) && ok;
+        ok = drv_.set_sleep(false) && ok;
+        ok = drv_.enable_outputs() && ok;
+        awake_ = true;
     }
-    else
+    if (duty != 0)
     {
-        _drv.enableCoast();  // Set driver to Hi-Z (disable)
+        const auto direction = duty > 0 ? Drv8245::Direction::Forward
+                                        : Drv8245::Direction::Reverse;
+        ok = drv_.set_direction(direction) && ok;
     }
+    ok = drv_.set_speed(static_cast<uint16_t>(std::abs(duty))) && ok;
+    duty_ = duty;
+    return ok;
 }
 
-void Motor::motorSpeed(int speed)
+bool Motor::standby()
 {
-    // Clamp speed to -100 to 100
-    speed = std::clamp(std::abs(speed), 0, 100);
-    _drv.setSpeed(static_cast<uint16_t>(speed));
+    bool ok = drv_.set_speed(0);
+    ok = drv_.enable_coast() && ok;
+    ok = drv_.set_sleep(true) && ok;
+    awake_ = false;
+    duty_ = 0;
+    return ok;
 }
 
-void Motor::motorDirection(bool forward)
+void Motor::sample()
 {
-    _drv.setDirection(forward ? Drv8245::Direction::Forward
-                              : Drv8245::Direction::Reverse);
+    const uint16_t raw = static_cast<uint16_t>(encoder_.get_ticks());
+    position_ += static_cast<int16_t>(raw - last_raw_);
+    last_raw_ = raw;
 }
 
-void Motor::moveDegrees(int degrees, int speed)
+int32_t Motor::position() const
 {
-    // Encoder
-    int initial_ticks = _encoder.getTicks();
-    int target_ticks =
-        initial_ticks + degrees;  // Assuming 1 degree = 1 tick for
-
-    // Move motor to target degrees using encoder feedback
-    bool forward = (degrees >= 0);
-    motorDirection(forward);
-    motorEnable(true);
-    motorSpeed(std::abs(speed));
-
-    // Simple polling loop (blocking)
-    if (forward)
-    {
-        while (_encoder.getTicks() < target_ticks)
-        {
-            LBR::Utils::DelayMs(1);
-        }
-    }
-    else
-    {
-        while (_encoder.getTicks() > target_ticks)
-        {
-            LBR::Utils::DelayMs(1);
-        }
-    }
-    motorSpeed(0);
-    motorEnable(false);
+    return position_;
 }
 
-int Motor::getTicks() const
+int Motor::duty() const
 {
-    return _encoder.getTicks();
+    return duty_;
 }
 
-int Motor::getStatus() const
+bool Motor::driver_fault() const
 {
-    // Return status code (0 for OK, nonzero for error)
-    if (!_initialized)
-    {
-        return -1;  // Not initialized
-    }
-    if (_drv.checkFault())
-    {
-        return -2;  // Driver fault
-    }
-    if (_encoder.getStatus() != 0)
-    {
-        return -3;  // Encoder error
-    }
-    return 0;
+    return awake_ && drv_.check_fault();
+}
+
+bool Motor::encoder_fault() const
+{
+    return encoder_.get_status() != 0;
 }
 
 }  // namespace LBR
