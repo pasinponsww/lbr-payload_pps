@@ -19,7 +19,8 @@ static inline void set_field(volatile uint32_t* field, uint32_t val,
 HwGpio::HwGpio(const StGpioParams& params)
     : settings_{params.settings},
       pin_num_{params.pin_num},
-      base_addr_{params.base_addr} {};
+      base_addr_{params.base_addr},
+      active_low_{params.active_low} {};
 
 bool HwGpio::init(void)
 {
@@ -46,13 +47,13 @@ bool HwGpio::init(void)
 bool HwGpio::toggle(void)
 {
     uint32_t bit = (1u << pin_num_);
-    bool current_state = (base_addr_->ODR & bit) != 0u;
+    bool current_state = ((base_addr_->ODR & bit) != 0u) != active_low_;
     return HwGpio::set(!current_state);
 }
 
 bool HwGpio::set(const bool active)
 {
-    if (active)
+    if (active != active_low_)
     {
         base_addr_->BSRR |= 1u << (pin_num_);
     }
@@ -65,7 +66,8 @@ bool HwGpio::set(const bool active)
 
 bool HwGpio::read(void)
 {
-    return base_addr_->IDR & (1u << pin_num_);
+    const bool high = (base_addr_->IDR & (1u << pin_num_)) != 0u;
+    return high != active_low_;
 }
 
 }  // namespace Stml4

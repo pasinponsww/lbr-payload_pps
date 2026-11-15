@@ -67,6 +67,7 @@ struct StGpioParams
     StGpioSettings settings;
     uint8_t pin_num;
     GPIO_TypeDef* base_addr;
+    bool active_low{false};  ///< true: a low pin level counts as active
 };
 
 class HwGpio : public Gpio
@@ -85,13 +86,22 @@ public:
     bool init(void);
 
     bool toggle(void) override;
+
+    /**
+     * @note For an active-low pin, active drives the pin low.
+     */
     bool set(const bool active) override;
+
+    /**
+     * @note For an active-low pin, returns true while the pin is low.
+     */
     bool read(void) override;
 
 private:
     StGpioSettings settings_;
     const uint8_t pin_num_;
     GPIO_TypeDef* const base_addr_;
+    const bool active_low_;
 };
 }  // namespace Stml4
 }  // namespace LBR
