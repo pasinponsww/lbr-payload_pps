@@ -12,7 +12,8 @@ target_include_directories(driver INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/io 
 )
 
-target_link_libraries(driver INTERFACE
-    hal
-    utils
-)
+target_link_libraries(driver INTERFACE utils)
+
+if (TARGET hal)
+    target_link_libraries(driver INTERFACE hal)
+endif()
