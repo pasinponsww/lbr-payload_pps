@@ -57,6 +57,7 @@ Deploying / Retracting --fault--> Recovery --> retry | retract (fallback) | Safe
 | `app/pps/pps_bsp/` | pin map and hardware bring-up for the L476 board |
 | `app/pps/sim/` | PC simulator of the mechanism |
 | `tools/ppsctl/` | command-line tool (Rust) |
+| `xtask/` | `cargo xtask` build, flash and control tasks |
 
 ## Commanding the payload
 
@@ -67,29 +68,37 @@ text, one command per line, so any serial terminal works:
 launch | deploy | retract | abort | reset | status | stream <ms> | help
 ```
 
-`ppsctl` wraps the same commands:
+Everything is also wrapped as cargo tasks, run from anywhere in the repo:
 
 ```
-cd tools/ppsctl
-cargo build --release
-ppsctl ports
-ppsctl --port COM5 status
-ppsctl --port COM5 launch
-ppsctl --port COM5 monitor
-ppsctl --port COM5 shell
+cargo xtask embedded build      # compile the firmware (--release for optimised)
+cargo xtask embedded flash      # program the board over ST-Link and start it
+cargo xtask embedded run        # build, then flash
+cargo xtask embedded reset      # restart the firmware
+cargo xtask embedded attach     # GDB on the running firmware
+
+cargo xtask pps ports           # list serial ports
+cargo xtask pps --port COM5 status
+cargo xtask pps --port COM5 launch | deploy | retract | abort | reset
+cargo xtask pps --port COM5 monitor
+cargo xtask pps --port COM5 shell
 ```
 
-Without hardware, build the simulator and either type into it directly or
-point `ppsctl` at it:
+Set `PPS_PORT` once (`$env:PPS_PORT = "COM5"`) to drop `--port`. `pps` runs
+`ppsctl` (in `tools/ppsctl`); `embedded` needs CMake, the ARM toolchain and
+OpenOCD on the PATH.
+
+Without hardware, `sim` runs the same commands against a simulated mechanism
+and builds it on first use:
 
 ```
-./make.ps1 -t native
-build/native/app/pps/sim/pps_sim.exe
-ppsctl --sim build/native/app/pps/sim/pps_sim.exe shell
+cargo xtask sim                 # interactive shell
+cargo xtask sim status
 ```
 
-The simulator adds fault injection: `sim jam on`, `sim drvfault on`,
-`sim reverse on`, `sim deadswitch on`, `sim moving on`, `sim boost 400`.
+Inside the simulator shell, faults can be injected: `sim jam on`,
+`sim drvfault on`, `sim reverse on`, `sim deadswitch on`, `sim moving on`,
+`sim boost 400`.
 
 ---
 

@@ -1,0 +1,3 @@
+[workspace]
+members = ["tools/ppsctl", "xtask"]
+resolver = "2"
