@@ -1,5 +1,3 @@
-
-
 #include "st_encoder.h"
 
 namespace LBR
@@ -7,52 +5,148 @@ namespace LBR
 namespace Stml4
 {
 
+namespace
+{
+constexpr int8_t kSkip = 2;
+constexpr uint32_t kMaxSkips = 8;
+
+// Indexed by (previous state << 2) | new state, state = (A << 1) | B
+constexpr int8_t kStep[16] = {0, 1,     -1, kSkip, -1,    0,  kSkip, 1,
+                              1, kSkip, 0,  -1,    kSkip, -1, 1,     0};
+
+HwEncoder* instance = nullptr;
+
+uint32_t port_index(const GPIO_TypeDef* port)
+{
+    return (reinterpret_cast<uint32_t>(port) - GPIOA_BASE) / 0x400u;
+}
+
+IRQn_Type line_irq(uint8_t line)
+{
+    if (line <= 4)
+    {
+        return static_cast<IRQn_Type>(EXTI0_IRQn + line);
+    }
+    return line <= 9 ? EXTI9_5_IRQn : EXTI15_10_IRQn;
+}
+
+void route_line(const GPIO_TypeDef* port, uint8_t line)
+{
+    const uint32_t shift = (line % 4u) * 4u;
+    volatile uint32_t& exticr = SYSCFG->EXTICR[line / 4u];
+    exticr = (exticr & ~(0xFu << shift)) | (port_index(port) << shift);
+
+    EXTI->RTSR1 |= 1u << line;
+    EXTI->FTSR1 |= 1u << line;
+    EXTI->PR1 = 1u << line;
+    EXTI->IMR1 |= 1u << line;
+    NVIC_EnableIRQ(line_irq(line));
+}
+}  // namespace
+
 HwEncoder::HwEncoder(const StEncoderParams& params)
     : gpio_a_(params.pin_a_params),
       gpio_b_(params.pin_b_params),
-      timer_base_(params.timer_base)
+      port_a_(params.pin_a_params.base_addr),
+      port_b_(params.pin_b_params.base_addr),
+      pin_a_(params.pin_a_params.pin_num),
+      pin_b_(params.pin_b_params.pin_num),
+      direction_(params.invert ? -1 : 1)
 {
 }
 
-bool HwEncoder::init(void)
+bool HwEncoder::init()
 {
-    bool ok_a = gpio_a_.init();
-    bool ok_b = gpio_b_.init();
-    if (!ok_a || !ok_b)
+    if (!gpio_a_.init() || !gpio_b_.init())
     {
-        _status = 1;
         return false;
     }
 
-    timer_base_->CR1 = 0;
-    timer_base_->ARR = 0xFFFF;
-    timer_base_->PSC = 0;
-    timer_base_->CNT = 0;
+    last_state_ = static_cast<uint8_t>((((port_a_->IDR >> pin_a_) & 1u) << 1) |
+                                       ((port_b_->IDR >> pin_b_) & 1u));
+    count_ = 0;
+    skips_ = 0;
+    instance = this;
 
-    timer_base_->SMCR &= ~TIM_SMCR_SMS;
-    timer_base_->SMCR |= TIM_SMCR_SMS_0 | TIM_SMCR_SMS_1;
-
-    timer_base_->CCMR1 &= ~(TIM_CCMR1_CC1S | TIM_CCMR1_CC2S);
-    timer_base_->CCMR1 |=
-        (0x01 << TIM_CCMR1_CC1S_Pos) | (0x01 << TIM_CCMR1_CC2S_Pos);
-
-    timer_base_->CCER &= ~(TIM_CCER_CC1P | TIM_CCER_CC2P);
-    timer_base_->CCER |= TIM_CCER_CC1E | TIM_CCER_CC2E;
-
-    timer_base_->CR1 |= TIM_CR1_CEN;
-    _status = 0;
+    route_line(port_a_, pin_a_);
+    route_line(port_b_, pin_b_);
+    initialized_ = true;
     return true;
 }
 
-int HwEncoder::getTicks() const
+int HwEncoder::get_ticks() const
 {
-    return static_cast<int>(timer_base_->CNT);
+    return static_cast<int>(count_);
 }
 
-int HwEncoder::getStatus() const
+int HwEncoder::get_status() const
 {
-    return _status;
+    if (!initialized_)
+    {
+        return 1;
+    }
+    return skips_ > kMaxSkips ? 2 : 0;
+}
+
+void HwEncoder::irq()
+{
+    if (instance != nullptr)
+    {
+        instance->on_edge();
+    }
+}
+
+void HwEncoder::on_edge()
+{
+    EXTI->PR1 = (1u << pin_a_) | (1u << pin_b_);
+
+    const uint8_t state =
+        static_cast<uint8_t>((((port_a_->IDR >> pin_a_) & 1u) << 1) |
+                             ((port_b_->IDR >> pin_b_) & 1u));
+    const int8_t step = kStep[(last_state_ << 2) | state];
+    last_state_ = state;
+
+    if (step == kSkip)
+    {
+        skips_ = skips_ + 1;
+    }
+    else
+    {
+        count_ = count_ + step * direction_;
+    }
 }
 
 }  // namespace Stml4
 }  // namespace LBR
+
+extern "C"
+{
+    void EXTI0_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI1_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI2_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI3_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI4_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI9_5_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+    void EXTI15_10_IRQHandler()
+    {
+        LBR::Stml4::HwEncoder::irq();
+    }
+}
