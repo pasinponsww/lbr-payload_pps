@@ -8,23 +8,24 @@
 
 #pragma once
 #include <cstdint>
-#include "gpio.h"
-#include "imu_math.h"
 #include "motor_support/dc_motor.h"
+#include "sensor/sensor_manager.h"
+#include "task/indicator_task.h"
 #include "uart.h"
 
 namespace LBR
 {
 
+/**
+ * @struct Board
+ * @brief Every piece of hardware the application touches
+ */
 struct Board
 {
     Motor& motor;
-    Gpio& limit_retracted;
-    Gpio& limit_extended;
+    SensorSet sensors;
     Uart& console;
-    Gpio& led_red;
-    Gpio& led_green;
-    Gpio& led_blue;
+    StatusLeds leds;
 };
 
 /**
@@ -33,16 +34,16 @@ struct Board
  */
 bool bsp_init();
 
-/** @brief Board hardware, valid after bsp_init() */
-Board& get_board();
-
-/** @brief Milliseconds since boot, wraps after ~49 days */
-uint32_t millis();
+/**
+ * @brief Access the board hardware
+ * @return the board, usable after bsp_init()
+ */
+const Board& get_board();
 
 /**
- * @brief Read acceleration (m/s^2) and angular rate (rad/s) from the IMU
- * @return true if the read succeeded
+ * @brief Time since boot
+ * @return milliseconds, wraps after about 49 days
  */
-bool read_imu(Vec3& accel, Vec3& gyro);
+uint32_t millis();
 
 }  // namespace LBR
