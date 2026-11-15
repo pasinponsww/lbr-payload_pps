@@ -5,27 +5,6 @@ namespace LBR
 namespace Stml4
 {
 
-namespace
-{
-constexpr uint8_t kInstances = 3;
-HwUsart* instances[kInstances] = {nullptr, nullptr, nullptr};
-
-int8_t usart_index(const USART_TypeDef* base)
-{
-    if (base == USART1)
-    {
-        return 0;
-    }
-    if (base == USART2)
-    {
-        return 1;
-    }
-    return base == USART3 ? 2 : -1;
-}
-    
-constexpr IRQn_Type kIrq[kInstances] = {USART1_IRQn, USART2_IRQn, USART3_IRQn};
-}  // namespace
-
 HwUsart::HwUsart(const StUsartParams& params)
     : base_addr_(params.base_addr), pclk_hz_(params.pclk_hz), baud_(params.baud)
 {
@@ -33,8 +12,8 @@ HwUsart::HwUsart(const StUsartParams& params)
 
 bool HwUsart::init()
 {
-    const int8_t index = usart_index(base_addr_);
-    if (index < 0 || baud_ == 0)
+    const int8_t slot = index();
+    if (slot < 0 || baud_ == 0)
     {
         return false;
     }
@@ -44,9 +23,22 @@ bool HwUsart::init()
     base_addr_->CR1 =
         USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE | USART_CR1_UE;
 
-    instances[index] = this;
-    NVIC_EnableIRQ(kIrq[index]);
+    instances_[slot] = this;
+    NVIC_EnableIRQ(kIrq[slot]);
     return true;
+}
+
+int8_t HwUsart::index() const
+{
+    if (base_addr_ == USART1)
+    {
+        return 0;
+    }
+    if (base_addr_ == USART2)
+    {
+        return 1;
+    }
+    return base_addr_ == USART3 ? 2 : -1;
 }
 
 bool HwUsart::read(uint8_t& byte)
@@ -81,9 +73,9 @@ bool HwUsart::write(std::span<const uint8_t> data)
 
 void HwUsart::irq(uint8_t index)
 {
-    if (index < kInstances && instances[index] != nullptr)
+    if (index < kInstances && instances_[index] != nullptr)
     {
-        instances[index]->on_interrupt();
+        instances_[index]->on_interrupt();
     }
 }
 

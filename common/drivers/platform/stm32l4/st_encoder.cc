@@ -5,44 +5,42 @@ namespace LBR
 namespace Stml4
 {
 
-namespace
+/**
+ * Routing of GPIO pins to their EXTI lines
+ */
+class ExtiLine
 {
-constexpr int8_t kSkip = 2;
-constexpr uint32_t kMaxSkips = 8;
-
-// Indexed by (previous state << 2) | new state, state = (A << 1) | B
-constexpr int8_t kStep[16] = {0, 1,     -1, kSkip, -1,    0,  kSkip, 1,
-                              1, kSkip, 0,  -1,    kSkip, -1, 1,     0};
-
-HwEncoder* instance = nullptr;
-
-uint32_t port_index(const GPIO_TypeDef* port)
-{
-    return (reinterpret_cast<uint32_t>(port) - GPIOA_BASE) / 0x400u;
-}
-
-IRQn_Type line_irq(uint8_t line)
-{
-    if (line <= 4)
+public:
+    static void route(const GPIO_TypeDef& port, uint8_t line)
     {
-        return static_cast<IRQn_Type>(EXTI0_IRQn + line);
+        const uint32_t shift = (line % 4u) * 4u;
+        volatile uint32_t& exticr = SYSCFG->EXTICR[line / 4u];
+        exticr = (exticr & ~(0xFu << shift)) | (port_index(port) << shift);
+
+        EXTI->RTSR1 |= 1u << line;
+        EXTI->FTSR1 |= 1u << line;
+        EXTI->PR1 = 1u << line;
+        EXTI->IMR1 |= 1u << line;
+        NVIC_EnableIRQ(irq(line));
     }
-    return line <= 9 ? EXTI9_5_IRQn : EXTI15_10_IRQn;
-}
 
-void route_line(const GPIO_TypeDef* port, uint8_t line)
-{
-    const uint32_t shift = (line % 4u) * 4u;
-    volatile uint32_t& exticr = SYSCFG->EXTICR[line / 4u];
-    exticr = (exticr & ~(0xFu << shift)) | (port_index(port) << shift);
+private:
+    static constexpr uint32_t kPortSpacing = 0x400u;
 
-    EXTI->RTSR1 |= 1u << line;
-    EXTI->FTSR1 |= 1u << line;
-    EXTI->PR1 = 1u << line;
-    EXTI->IMR1 |= 1u << line;
-    NVIC_EnableIRQ(line_irq(line));
-}
-}  // namespace
+    static uint32_t port_index(const GPIO_TypeDef& port)
+    {
+        return (reinterpret_cast<uint32_t>(&port) - GPIOA_BASE) / kPortSpacing;
+    }
+
+    static IRQn_Type irq(uint8_t line)
+    {
+        if (line <= 4)
+        {
+            return static_cast<IRQn_Type>(EXTI0_IRQn + line);
+        }
+        return line <= 9 ? EXTI9_5_IRQn : EXTI15_10_IRQn;
+    }
+};
 
 HwEncoder::HwEncoder(const StEncoderParams& params)
     : gpio_a_(params.pin_a_params),
@@ -62,14 +60,13 @@ bool HwEncoder::init()
         return false;
     }
 
-    last_state_ = static_cast<uint8_t>((((port_a_->IDR >> pin_a_) & 1u) << 1) |
-                                       ((port_b_->IDR >> pin_b_) & 1u));
+    last_state_ = read_state();
     count_ = 0;
     skips_ = 0;
-    instance = this;
+    instance_ = this;
 
-    route_line(port_a_, pin_a_);
-    route_line(port_b_, pin_b_);
+    ExtiLine::route(*port_a_, pin_a_);
+    ExtiLine::route(*port_b_, pin_b_);
     initialized_ = true;
     return true;
 }
@@ -90,19 +87,23 @@ int HwEncoder::get_status() const
 
 void HwEncoder::irq()
 {
-    if (instance != nullptr)
+    if (instance_ != nullptr)
     {
-        instance->on_edge();
+        instance_->on_edge();
     }
+}
+
+uint8_t HwEncoder::read_state() const
+{
+    return static_cast<uint8_t>((((port_a_->IDR >> pin_a_) & 1u) << 1) |
+                                ((port_b_->IDR >> pin_b_) & 1u));
 }
 
 void HwEncoder::on_edge()
 {
     EXTI->PR1 = (1u << pin_a_) | (1u << pin_b_);
 
-    const uint8_t state =
-        static_cast<uint8_t>((((port_a_->IDR >> pin_a_) & 1u) << 1) |
-                             ((port_b_->IDR >> pin_b_) & 1u));
+    const uint8_t state = read_state();
     const int8_t step = kStep[(last_state_ << 2) | state];
     last_state_ = state;
 

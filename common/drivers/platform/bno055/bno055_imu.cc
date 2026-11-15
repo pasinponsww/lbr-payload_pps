@@ -95,8 +95,11 @@ bool Bno055::read_all(Bno055Data& out)
     size_t idx = 0;
 
     // Read everything starting from ACC register (0x08)
-    i2c_.mem_read(std::span<uint8_t>(buf, sizeof(buf)), (uint8_t)0x08,
-                  address_);
+    if (!i2c_.mem_read(std::span<uint8_t>(buf, sizeof(buf)), (uint8_t)0x08,
+                       address_))
+    {
+        return false;
+    }
 
     // Parse accel
     constexpr float ACCEL_SCALE = 100.0f;
