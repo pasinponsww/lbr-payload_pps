@@ -8,53 +8,44 @@ Drv8245::Drv8245(Gpio& dir, Pwm& pwm, Gpio& drv_z, Gpio& sleep, Gpio& fault)
 {
 }
 
-void Drv8245::init()
+bool Drv8245::init()
 {
-    drv_z_.set(true);  // Enable driver
-    sleep_.set(true);  // Wake up driver
+    return enable_outputs() && set_sleep(false);
 }
 
-void Drv8245::setSpeed(uint16_t pwm_value)
+bool Drv8245::set_speed(uint16_t pwm_value)
 {
     if (pwm_value > 100)
     {
-        pwm_value = 100;  // Cap at 100%
+        pwm_value = 100;
     }
-    pwm_.set_duty_cycle(pwm_value);
+    return pwm_.set_duty_cycle(static_cast<uint8_t>(pwm_value));
 }
 
-void Drv8245::setDirection(Direction dir)
+bool Drv8245::set_direction(Direction dir)
 {
-    if (dir == Direction::Forward)
-    {
-        dir_.set(true);
-    }
-    else
-    {
-        dir_.set(false);
-    }
+    return dir_.set(dir == Direction::Forward);
 }
 
-void Drv8245::enableCoast()
+bool Drv8245::enable_coast()
 {
-    drv_z_.set(false);  // Disable driver outputs (Hi-Z)
+    return drv_z_.set(false);
 }
 
-void Drv8245::setSleep(bool enable)
+bool Drv8245::enable_outputs()
 {
-    if (enable)
-    {
-        sleep_.set(false);  // Enter sleep mode
-    }
-    else
-    {
-        sleep_.set(true);  // Wake up
-    }
+    return drv_z_.set(true);
 }
 
-bool Drv8245::checkFault() const
+bool Drv8245::set_sleep(bool enable)
 {
-    return !fault_.read();  // Active low nFAULT
+    return sleep_.set(!enable);
+}
+
+bool Drv8245::check_fault() const
+{
+    // nFAULT is active low
+    return !fault_.read();
 }
 
 }  // namespace LBR

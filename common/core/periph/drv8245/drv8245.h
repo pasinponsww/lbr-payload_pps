@@ -41,41 +41,47 @@ public:
 
     /**
     * @brief Initialize the motor driver
+    * @return true if the pin writes succeeded, as for every operation below
     * @note This function sets up the GPIO and PWM interfaces.
     */
-    void init();
+    bool init();
 
     /**
     * @brief Set motor speed (0-100%)
     * @param pwm_value Speed value from 0 (stop) to 100 (full speed)
     * @note This function sets the motor speed by adjusting the PWM duty cycle.
     */
-    void setSpeed(uint16_t pwm_value);
+    bool set_speed(uint16_t pwm_value);
 
     /**
     * @brief set motor direction
     * @param dir Direction enum (Forward/Reverse)
     * @note This function sets the deploy_board motor direction by controlling the DIR pin.
     */
-    void setDirection(Direction dir);
+    bool set_direction(Direction dir);
 
     /**
     * @brief Enable coast (Hi-Z) mode
     * @note This function disables the deploy_board motor outputs, putting them in a high-impedance state.
     */
-    void enableCoast();
+    bool enable_coast();
+
+    /**
+    * @brief Leave coast mode and re-enable the bridge outputs
+    */
+    bool enable_outputs();
 
     /**
     * @brief Enable/Disable sleep mode
     * @note set deploy_board motor into a low-power sleep state when enabled, and wakes it when disabled.
     */
-    void setSleep(bool enable);
+    bool set_sleep(bool enable);
 
     /**
     * @brief Check for fault condition
     * @return true if a fault is detected, false otherwise
     */
-    bool checkFault() const;
+    bool check_fault() const;
 
 private:
     Gpio& dir_;
