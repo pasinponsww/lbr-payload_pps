@@ -1,206 +1,178 @@
 #include <cstdint>
+#include "bno055_imu.h"
 #include "board.h"
-#include "motor_support/dc_motor.h"
+#include "drv8245.h"
 #include "st_encoder.h"
 #include "st_gpio.h"
 #include "st_i2c.h"
 #include "st_pwm.h"
+#include "st_sys_clock.h"
+#include "st_usart.h"
 
 namespace LBR
 {
 
-// UART4_TX (PA0) & UART4_RX (PA1) pin config
-Stml4::StGpioSettings tx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams tx_params{tx_settings, 0, GPIOA};
+namespace
+{
+using Stml4::GpioMode;
+using Stml4::GpioOspeed;
+using Stml4::GpioOtype;
+using Stml4::GpioPupd;
+using Stml4::StGpioParams;
 
-Stml4::StGpioSettings rx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams rx_params{rx_settings, 1, GPIOA};
+constexpr uint32_t kPclkHz = 4'000'000;
+constexpr uint32_t kConsoleBaud = 115'200;
+constexpr uint32_t kMotorPwmHz = 20'000;
+constexpr uint32_t kI2cTiming = 0x10909CEC;
 
-// LMT_SWT (PA3) pin config
-Stml4::StGpioSettings lmt_swt_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::PULL_UP, 0};
-const Stml4::StGpioParams lmt_swt_params{lmt_swt_settings, 3, GPIOA};
+constexpr uint8_t kAfTim1 = 1;
+constexpr uint8_t kAfI2c1 = 4;
+constexpr uint8_t kAfUsart1 = 7;
 
-// Motor Driver Control Pins
-// RS_EN (PA5) pin config
-Stml4::StGpioSettings rs_en_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams rs_en_params{rs_en_settings, 5, GPIOA};
-// MTR_PWM1 (PA8) pin config
-Stml4::StGpioSettings mtr_pwm1_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams mtr_pwm1_params{mtr_pwm1_settings, 8, GPIOA};
-// MTR_DIR2 (PA9) pin config
-Stml4::StGpioSettings mtr_dir2_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams mtr_dir2_params{mtr_dir2_settings, 9, GPIOA};
+StGpioParams input(GPIO_TypeDef* port, uint8_t pin, GpioPupd pull)
+{
+    return {{GpioMode::INPUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW, pull, 0},
+            pin,
+            port};
+}
 
-// SWDIO (PA13) & SWCLK (PA14) pin config
-// (no need to configure these unless SWD is disabled)
+StGpioParams active_low_input(GPIO_TypeDef* port, uint8_t pin)
+{
+    StGpioParams params = input(port, pin, GpioPupd::PULL_UP);
+    params.active_low = true;
+    return params;
+}
 
-/* Stml4::StGpioSettings swdio_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams swdio_params{swdio_settings, 13, GPIOA};
+StGpioParams output(GPIO_TypeDef* port, uint8_t pin)
+{
+    return {{GpioMode::GPOUT, GpioOtype::PUSH_PULL, GpioOspeed::LOW,
+             GpioPupd::NO_PULL, 0},
+            pin,
+            port};
+}
 
-Stml4::StGpioSettings swclk_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams swclk_params{swclk_settings, 14, GPIOA}; */
+StGpioParams alternate(GPIO_TypeDef* port, uint8_t pin, uint8_t af,
+                       GpioOtype otype = GpioOtype::PUSH_PULL,
+                       GpioPupd pull = GpioPupd::NO_PULL)
+{
+    return {{GpioMode::ALT_FUNC, otype, GpioOspeed::HIGH, pull, af}, pin, port};
+}
 
-// DBG_USART_TX (PB6) & DBG_USART_RX (PB7) pin config
-Stml4::StGpioSettings dbg_tx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams dbg_tx_params{dbg_tx_settings, 6, GPIOB};
+// Limit switches, closed to ground: extended LMT_SWT (PA3), retracted (PA5)
+Stml4::HwGpio limit_extended(active_low_input(GPIOA, 3));
+Stml4::HwGpio limit_retracted(active_low_input(GPIOA, 5));
 
-Stml4::StGpioSettings dbg_rx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams dbg_rx_params{dbg_rx_settings, 7, GPIOB};
+// Motor driver: MTR_PWM1 (PA8, TIM1_CH1), MTR_DIR2 (PA9), DR_FAULT (PC6), MTR_SLP (PC7), DRV_Z (PC8)
+Stml4::HwGpio gpio_mtr_pwm1(alternate(GPIOA, 8, kAfTim1));
+Stml4::HwGpio gpio_mtr_dir2(output(GPIOA, 9));
+Stml4::HwGpio gpio_drv_fault(input(GPIOC, 6, GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_mtr_slp(output(GPIOC, 7));
+Stml4::HwGpio gpio_drv_z(output(GPIOC, 8));
 
-// ADC Pins
-// CS_PADC (PC0)
-Stml4::StGpioSettings cs_padc_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams cs_padc_params{cs_padc_settings, 0, GPIOC};
+// Spare output: CS_PADC (PC0)
+Stml4::HwGpio gpio_cs_padc(output(GPIOC, 0));
 
-// Encoder Pins
-// ENC_A_L (PC4) pin config
-Stml4::StGpioSettings enc_a_l_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams enc_a_l_params{enc_a_l_settings, 4, GPIOC};
-// ENC_B_L (PC5) pin config
-Stml4::StGpioSettings enc_b_l_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams enc_b_l_params{enc_b_l_settings, 5, GPIOC};
+// Debug LEDs: DBG_RED (PC1), DBG_BLUE (PC2), DBG_GREEN (PC3)
+Stml4::HwGpio gpio_dbg_red(output(GPIOC, 1));
+Stml4::HwGpio gpio_dbg_blue(output(GPIOC, 2));
+Stml4::HwGpio gpio_dbg_green(output(GPIOC, 3));
 
-// DR_FAULT (PC6) / MTR_SLP (PC7) / DRV_Z (PC8)
-Stml4::StGpioSettings drv_fault_settings{
-    Stml4::GpioMode::INPUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams drv_fault_params{drv_fault_settings, 6, GPIOC};
+// Console: DBG_USART_TX (PB6), DBG_USART_RX (PB7) on USART1
+Stml4::HwGpio gpio_dbg_tx(alternate(GPIOB, 6, kAfUsart1));
+Stml4::HwGpio gpio_dbg_rx(alternate(GPIOB, 7, kAfUsart1, GpioOtype::PUSH_PULL,
+                                    GpioPupd::PULL_UP));
 
-Stml4::StGpioSettings mtr_slp_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams mtr_slp_params{mtr_slp_settings, 7, GPIOC};
+// IMU bus: I2C1 SCL (PB8), SDA (PB9)
+Stml4::HwGpio gpio_i2c_scl(alternate(GPIOB, 8, kAfI2c1, GpioOtype::OPEN_DRAIN,
+                                     GpioPupd::PULL_UP));
+Stml4::HwGpio gpio_i2c_sda(alternate(GPIOB, 9, kAfI2c1, GpioOtype::OPEN_DRAIN,
+                                     GpioPupd::PULL_UP));
 
-Stml4::StGpioSettings drv_z_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams drv_z_params{drv_z_settings, 8, GPIOC};
+Stml4::HwClock clock;
 
-// Debug LEDs
-// DBG_RED (PC1) pin config
-Stml4::StGpioSettings dbg_red_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams dbg_red_params{dbg_red_settings, 1, GPIOC};
-// DBG_BLUE (PC2) pin config
-Stml4::StGpioSettings dbg_blue_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams dbg_blue_params{dbg_blue_settings, 2, GPIOC};
-// DBG_GREEN (PC3) pin config
-Stml4::StGpioSettings dbg_green_settings{
-    Stml4::GpioMode::GPOUT, Stml4::GpioOtype::PUSH_PULL, Stml4::GpioOspeed::LOW,
-    Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams dbg_green_params{dbg_green_settings, 3, GPIOC};
+Stml4::HwPwm motor_pwm({TIM1,
+                        1,
+                        {Stml4::PwmMode::EDGE_ALIGNED,
+                         Stml4::PwmOutputMode::MODE1,
+                         Stml4::PwmDir::UPCOUNTING}});
 
-// UART5
-// UART5_TX (PC12) pin config
-Stml4::StGpioSettings uart5_tx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams uart5_tx_params{uart5_tx_settings, 12, GPIOC};
-// UART5_RX (PD2) pin config
-Stml4::StGpioSettings uart5_rx_settings{
-    Stml4::GpioMode::ALT_FUNC, Stml4::GpioOtype::PUSH_PULL,
-    Stml4::GpioOspeed::HIGH, Stml4::GpioPupd::NO_PULL, 0};
-const Stml4::StGpioParams uart5_rx_params{uart5_rx_settings, 2, GPIOD};
+// Encoder: ENC_A_L (PC4), ENC_B_L (PC5)
+Stml4::HwEncoder encoder({input(GPIOC, 4, GpioPupd::NO_PULL),
+                          input(GPIOC, 5, GpioPupd::NO_PULL), false});
 
-// GPIO objects BSP owns and manages
+Drv8245 motor_driver(gpio_mtr_dir2, motor_pwm, gpio_drv_z, gpio_mtr_slp,
+                     gpio_drv_fault);
+Motor motor(motor_driver, encoder);
 
-Stml4::HwGpio gpio_lmt_swt(lmt_swt_params);
-Stml4::HwGpio gpio_rs_en(rs_en_params);
-Stml4::HwGpio gpio_mtr_dir2(mtr_dir2_params);
-Stml4::HwGpio gpio_cs_padc(cs_padc_params);
+Stml4::HwUsart console_uart({USART1, kPclkHz, kConsoleBaud});
 
-Stml4::HwGpio gpio_dbg_red(dbg_red_params);
-Stml4::HwGpio gpio_dbg_blue(dbg_blue_params);
-Stml4::HwGpio gpio_dbg_green(dbg_green_params);
+Stml4::HwI2c i2c({I2C1, kI2cTiming});
+Bno055 imu(i2c);
 
-Stml4::HwGpio gpio_enc_a_l(enc_a_l_params);
-Stml4::HwGpio gpio_enc_b_l(enc_b_l_params);
-
-Stml4::HwGpio gpio_drv_fault(drv_fault_params);
-Stml4::HwGpio gpio_mtr_slp(mtr_slp_params);
-Stml4::HwGpio gpio_drv_z(drv_z_params);
-
-static Bno055Data imu_hw = {};
-// Use an existing GPIO as the board's main GPIO interface
-Gpio& board_gpio = gpio_lmt_swt;
-
-// I2C hardware setup (example values, adjust as needed)
-Stml4::StI2cParams i2c_params{I2C1, 0x10909CEC};
-Stml4::HwI2c i2c_hw(i2c_params);
-
-// Motor and IMU objects (still dummy for now)
-Motor motor_hw{*(Drv8245*)nullptr, *(Encoder*)nullptr};
-
-// Construct the Board object with real hardware objects
-static Board board{i2c_hw, board_gpio, imu_hw, &motor_hw};
-
-// Forward declarations for Motor& overloads (defined in helpers)
-void motorDeploy(Motor&);
-void motorTarget(Motor&);
-void motorRetract(Motor&);
+Board board{motor,        limit_retracted, limit_extended, console_uart,
+            gpio_dbg_red, gpio_dbg_green,  gpio_dbg_blue};
+}  // namespace
 
 bool bsp_init()
 {
-    // Enable peripheral clocks
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIODEN;
+    bool ok = clock.init(Stml4::HwClock::configuration::DEFAULT_4MHZ);
 
-    // Initialize GPIOs
-    bool ret = true;
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN | RCC_AHB2ENR_GPIOBEN |
+                    RCC_AHB2ENR_GPIOCEN | RCC_AHB2ENR_GPIODEN;
+    RCC->APB2ENR |=
+        RCC_APB2ENR_SYSCFGEN | RCC_APB2ENR_TIM1EN | RCC_APB2ENR_USART1EN;
+    RCC->APB1ENR1 |= RCC_APB1ENR1_I2C1EN;
 
-    ret = ret && gpio_lmt_swt.init();
-    ret = ret && gpio_rs_en.init();
-    ret = ret && gpio_mtr_dir2.init();
-    ret = ret && gpio_cs_padc.init();
+    ok = gpio_dbg_red.init() && ok;
+    ok = gpio_dbg_blue.init() && ok;
+    ok = gpio_dbg_green.init() && ok;
+    ok = gpio_cs_padc.init() && ok;
 
-    ret = ret && gpio_dbg_red.init();
-    ret = ret && gpio_dbg_blue.init();
-    ret = ret && gpio_dbg_green.init();
+    ok = limit_extended.init() && ok;
+    ok = limit_retracted.init() && ok;
+    ok = gpio_mtr_pwm1.init() && ok;
+    ok = gpio_mtr_dir2.init() && ok;
+    ok = gpio_drv_fault.init() && ok;
+    ok = gpio_mtr_slp.init() && ok;
+    ok = gpio_drv_z.init() && ok;
 
-    ret = ret && gpio_enc_a_l.init();
-    ret = ret && gpio_enc_b_l.init();
+    ok = gpio_dbg_tx.init() && ok;
+    ok = gpio_dbg_rx.init() && ok;
+    ok = console_uart.init() && ok;
 
-    ret = ret && gpio_drv_fault.init();
-    ret = ret && gpio_mtr_slp.init();
-    ret = ret && gpio_drv_z.init();
+    ok = motor_pwm.init() && ok;
+    ok = motor_pwm.set_freq(kMotorPwmHz) && ok;
+    ok = encoder.init() && ok;
+    ok = motor.init() && ok;
 
-    return ret;
+    ok = gpio_i2c_scl.init() && ok;
+    ok = gpio_i2c_sda.init() && ok;
+    ok = i2c.init() && ok;
+    imu.init();
+
+    return ok;
 }
 
 Board& get_board()
 {
     return board;
+}
+
+uint32_t millis()
+{
+    return HAL_GetTick();
+}
+
+bool read_imu(Vec3& accel, Vec3& gyro)
+{
+    Bno055Data data{};
+    if (!imu.read_all(data))
+    {
+        return false;
+    }
+    accel = data.accel;
+    gyro = data.gyro;
+    return true;
 }
 
 }  // namespace LBR
