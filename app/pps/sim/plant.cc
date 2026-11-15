@@ -1,19 +1,10 @@
 #include "plant.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 namespace LBR::Sim
 {
-
-namespace
-{
-constexpr float kMaxSpeed = 3000.0f;
-constexpr float kDriveTau = 0.05f;
-constexpr float kCoastTau = 0.30f;
-constexpr float kTravel = 931.0f;
-constexpr float kGravity = 9.81f;
-constexpr float kBoostAccel = 40.0f;
-}  // namespace
 
 bool Pin::toggle()
 {
@@ -71,6 +62,54 @@ bool Terminal::write(std::span<const uint8_t> data)
     return written == data.size();
 }
 
+bool ImuBus::mem_read(std::span<uint8_t> data, const uint8_t reg_addr, uint8_t)
+{
+    if (reg_addr != kDataRegister || data.size() < kGyroOffset + 6)
+    {
+        return false;
+    }
+    std::fill(data.begin(), data.end(), uint8_t{0});
+    encode(data.subspan(0, 6), accel, kAccelScale);
+    encode(data.subspan(kGyroOffset, 6), gyro, kGyroScale);
+    return true;
+}
+
+bool ImuBus::mem_read(std::span<uint8_t>, const uint16_t, uint8_t)
+{
+    return false;
+}
+
+bool ImuBus::mem_write(std::span<const uint8_t>, const uint8_t, uint8_t)
+{
+    return true;
+}
+
+bool ImuBus::mem_write(std::span<const uint8_t>, const uint16_t, uint8_t)
+{
+    return false;
+}
+
+bool ImuBus::read(std::span<uint8_t>, uint8_t)
+{
+    return false;
+}
+
+bool ImuBus::write(std::span<const uint8_t>, uint8_t)
+{
+    return false;
+}
+
+void ImuBus::encode(std::span<uint8_t> out, const Vec3& v, float scale)
+{
+    const float axes[3] = {v.x, v.y, v.z};
+    for (size_t i = 0; i < 3; ++i)
+    {
+        const auto raw = static_cast<int16_t>(std::lround(axes[i] * scale));
+        out[2 * i] = static_cast<uint8_t>(raw & 0xFF);
+        out[2 * i + 1] = static_cast<uint8_t>((raw >> 8) & 0xFF);
+    }
+}
+
 Plant::Plant()
 {
     step(0.0f);
@@ -107,12 +146,8 @@ void Plant::step(float dt_s)
     {
         boost_s_ -= dt_s;
     }
-}
-
-void Plant::imu(Vec3& accel, Vec3& gyro) const
-{
-    accel = {0.0f, 0.0f, boost_s_ > 0.0f ? kBoostAccel : kGravity};
-    gyro = {moving_base ? 1.0f : 0.0f, 0.0f, 0.0f};
+    imu_bus.accel = {0.0f, 0.0f, boost_s_ > 0.0f ? kBoostAccel : kGravity};
+    imu_bus.gyro = {moving_base ? 1.0f : 0.0f, 0.0f, 0.0f};
 }
 
 void Plant::boost(uint32_t duration_ms)
