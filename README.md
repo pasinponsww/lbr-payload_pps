@@ -16,6 +16,83 @@ Created by: **@pasinponsww**
 
 ---
 
+## How it works
+
+The firmware is a bare-metal loop with no RTOS. Every 10 ms it samples the
+sensors, runs one step of the payload state machine and services the console.
+Every transition is gated by sensor feedback.
+
+```
+Standby --launch accel--> Flight --at rest (or timeout)--> Deploying
+Deploying --extended switch closes at the expected travel--> Holding
+Holding --retract command--> Retracting --retracted switch closes--> Standby
+
+Deploying / Retracting --fault--> Recovery --> retry | retract (fallback) | Safed
+```
+
+- **Travel** runs between two limit switches, one at each end. Deploying is a
+  closed PID loop on the encoder over the expected travel of 720 degrees
+  (48 CPR encoder, 9.7:1 gearbox, about 931 counts), then a slow creep until
+  the extended switch closes. The switch has to close within a window of the
+  expected count, otherwise the encoder and the switch disagree.
+- **Retracting** is the same in reverse onto the retracted switch, which also
+  re-zeroes the encoder. A deploy that starts away from the retracted switch
+  retracts first to find it.
+- **FDIR** watches every motion for a driver fault, encoder fault, stall,
+  wrong-direction travel, timeout and limit switch mismatch. Recoverable faults
+  are retried with a growing backoff (a stall also gets a short reverse nudge).
+  A deploy that still cannot reach the extended switch falls back to
+  retracting, then latches `Safed` with the fault recorded. If retracting fails
+  too, or the encoder cannot be trusted, the driver is put to sleep in `Safed`.
+  `reset` leaves `Safed`.
+
+| Path | Contents |
+| --- | --- |
+| `app/pps/pps.*` | payload state machine |
+| `app/pps/pps_config.h` | every mission constant and tuning value |
+| `app/pps/fdir/` | fault detection and recovery policy |
+| `app/pps/control/` | PID position loop |
+| `app/pps/motor_support/` | DC motor actuator with encoder feedback |
+| `app/pps/console/` | serial command console |
+| `app/pps/pps_bsp/` | pin map and hardware bring-up for the L476 board |
+| `app/pps/sim/` | PC simulator of the mechanism |
+| `tools/ppsctl/` | command-line tool (Rust) |
+
+## Commanding the payload
+
+The console is on the debug USART (PB6 TX, PB7 RX) at 115200 8N1. It is plain
+text, one command per line, so any serial terminal works:
+
+```
+launch | deploy | retract | abort | reset | status | stream <ms> | help
+```
+
+`ppsctl` wraps the same commands:
+
+```
+cd tools/ppsctl
+cargo build --release
+ppsctl ports
+ppsctl --port COM5 status
+ppsctl --port COM5 launch
+ppsctl --port COM5 monitor
+ppsctl --port COM5 shell
+```
+
+Without hardware, build the simulator and either type into it directly or
+point `ppsctl` at it:
+
+```
+./make.ps1 -t native
+build/native/app/pps/sim/pps_sim.exe
+ppsctl --sim build/native/app/pps/sim/pps_sim.exe shell
+```
+
+The simulator adds fault injection: `sim jam on`, `sim drvfault on`,
+`sim reverse on`, `sim deadswitch on`, `sim moving on`, `sim boost 400`.
+
+---
+
 ## Build & Compile Instructions
 
 ### Prerequisites
