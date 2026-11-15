@@ -5,20 +5,20 @@
  * @note Sequence: Standby -> Flight -> Deploying -> Holding, with Retracting
  *       back to stow. This class only sequences: motion lives in Travel,
  *       fault handling in Fdir and Recovery, flight detection in
- *       FlightDetector. Every transition is gated by the sensor frame.
+ *       Flight. Every transition is gated by the sensor frame.
  * @author Bex Saw
  * @date 2026/01/05
  */
 
 #include <cstdint>
 #include <string_view>
-#include "control/travel.h"
+#include "config.h"
 #include "fdir/fdir.h"
 #include "fdir/recovery.h"
-#include "motor_support/dc_motor.h"
-#include "pps_config.h"
-#include "sensor/flight_detector.h"
-#include "sensor/sensor_frame.h"
+#include "motion/motor.h"
+#include "motion/travel.h"
+#include "sensor/flight.h"
+#include "sensor/sensors.h"
 
 namespace LBR
 {
@@ -117,7 +117,7 @@ private:
     Travel travel_;
     Fdir fdir_;
     Recovery recovery_;
-    FlightDetector flight_;
+    Flight flight_;
 
     PpsState state_{PpsState::Standby};
     PpsState resume_{PpsState::Standby};

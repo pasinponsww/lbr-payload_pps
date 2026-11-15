@@ -1,9 +1,62 @@
 #include "console.h"
+#include <array>
 #include <charconv>
-#include "line_builder.h"
+#include <span>
 
 namespace LBR
 {
+
+// Fixed-size builder for one line of output, no heap and no printf
+class Line
+{
+public:
+    Line& text(std::string_view text);
+
+    Line& number(int32_t value);
+
+    bool send(Uart& uart);
+
+private:
+    static constexpr size_t kCapacity = 112;
+    static constexpr std::string_view kLineEnd = "\r\n";
+
+    std::array<uint8_t, kCapacity> data_{};
+    size_t size_{0};
+};
+
+Line& Line::text(std::string_view text)
+{
+    // Room for the line ending is always kept
+    for (const char c : text)
+    {
+        if (size_ >= kCapacity - kLineEnd.size())
+        {
+            break;
+        }
+        data_[size_++] = static_cast<uint8_t>(c);
+    }
+    return *this;
+}
+
+Line& Line::number(int32_t value)
+{
+    std::array<char, 12> digits{};
+    const auto result =
+        std::to_chars(digits.data(), digits.data() + digits.size(), value);
+    return text(
+        {digits.data(), static_cast<size_t>(result.ptr - digits.data())});
+}
+
+bool Line::send(Uart& uart)
+{
+    for (const char c : kLineEnd)
+    {
+        data_[size_++] = static_cast<uint8_t>(c);
+    }
+    const std::span<const uint8_t> line(data_.data(), size_);
+    size_ = 0;
+    return uart.write(line);
+}
 
 Console::Console(Uart& uart, Pps& pps)
     : uart_(uart), pps_(pps), last_state_(pps.status().state)
@@ -77,7 +130,7 @@ bool Console::execute(std::string_view line)
     }
     if (line == "help")
     {
-        return LineBuilder().text(kHelp).send(uart_);
+        return Line().text(kHelp).send(uart_);
     }
     return reply("err", "unknown command, try help");
 }
@@ -88,7 +141,7 @@ bool Console::send_command(const Entry& entry)
     {
         return reply("ok", entry.name);
     }
-    return LineBuilder()
+    return Line()
         .text("err ")
         .text(entry.name)
         .text(" not allowed in ")
@@ -112,7 +165,7 @@ bool Console::set_stream(std::string_view argument)
 bool Console::report(std::string_view kind)
 {
     const PpsStatus status = pps_.status();
-    return LineBuilder()
+    return Line()
         .text(kind)
         .text(" state=")
         .text(to_string(status.state))
@@ -135,7 +188,7 @@ bool Console::report(std::string_view kind)
 
 bool Console::reply(std::string_view prefix, std::string_view text)
 {
-    return LineBuilder().text(prefix).text(" ").text(text).send(uart_);
+    return Line().text(prefix).text(" ").text(text).send(uart_);
 }
 
 }  // namespace LBR

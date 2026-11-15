@@ -10,9 +10,9 @@
  */
 
 #include <cstdint>
-#include "control/pid.h"
-#include "motor_support/dc_motor.h"
-#include "sensor/sensor_frame.h"
+#include "motion/motor.h"
+#include "motion/pid.h"
+#include "sensor/sensors.h"
 
 namespace LBR
 {

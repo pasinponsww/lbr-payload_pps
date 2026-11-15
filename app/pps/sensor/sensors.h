@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file sensor_manager.h
+ * @file sensors.h
  * @brief Single owner of every PPS sensor
  * @note All sensors are injected as one set. Each control tick the manager
  *       reads them and hands the rest of the application one SensorFrame,
@@ -11,12 +11,27 @@
 
 #include <cstdint>
 #include "bno055_imu.h"
-#include "debounced_input.h"
+#include "debounce.h"
 #include "gpio.h"
-#include "sensor_frame.h"
+#include "imu_math.h"
 
 namespace LBR
 {
+
+/**
+ * @struct SensorFrame
+ * @brief Sensor readings taken at the same instant
+ * @note Produced by Sensors, consumed by the state machine.
+ */
+struct SensorFrame
+{
+    uint32_t now_ms{0};
+    bool at_retracted{false};  ///< retracted limit switch closed, debounced
+    bool at_extended{false};   ///< extended limit switch closed, debounced
+    bool imu_valid{false};     ///< accel and gyro were read this tick
+    Vec3 accel{};              ///< m/s^2, gravity included
+    Vec3 gyro{};               ///< rad/s
+};
 
 /**
  * @struct SensorSet
@@ -38,7 +53,7 @@ struct SensorConfig
     uint32_t switch_debounce_ms{30};  ///< steady time before a switch counts
 };
 
-class SensorManager
+class Sensors
 {
 public:
     /**
@@ -46,7 +61,7 @@ public:
      * @param sensors hardware to read, must outlive the manager
      * @param config conditioning parameters
      */
-    SensorManager(const SensorSet& sensors, const SensorConfig& config);
+    Sensors(const SensorSet& sensors, const SensorConfig& config);
 
     /**
      * @brief Read every sensor once
@@ -65,8 +80,8 @@ public:
     const SensorFrame& frame() const;
 
 private:
-    DebouncedInput limit_retracted_;
-    DebouncedInput limit_extended_;
+    Debounce limit_retracted_;
+    Debounce limit_extended_;
     Bno055& imu_;
     SensorFrame frame_{};
 };

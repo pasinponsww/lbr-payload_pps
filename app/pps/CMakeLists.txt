@@ -1,19 +1,15 @@
 add_library(pps STATIC
-    pps.cc
-    console/console.cc
-    console/line_builder.cc
-    control/pid.cc
-    control/travel.cc
+    core/console.cc
+    core/pps.cc
+    core/rtask.cc
     fdir/fdir.cc
     fdir/recovery.cc
-    motor_support/dc_motor.cc
-    sensor/debounced_input.cc
-    sensor/dwell.cc
-    sensor/flight_detector.cc
-    sensor/sensor_manager.cc
-    task/control_task.cc
-    task/indicator_task.cc
-    task/rtask.cc
+    motion/motor.cc
+    motion/pid.cc
+    motion/travel.cc
+    sensor/debounce.cc
+    sensor/flight.cc
+    sensor/sensors.cc
 )
 
 target_include_directories(pps PUBLIC
@@ -28,7 +24,7 @@ if (TARGET_DEVICE STREQUAL "NATIVE")
     return()
 endif()
 
-add_subdirectory(pps_bsp)
+add_subdirectory(bsp)
 
 add_executable(pps_app main.cc ${CMAKE_SOURCE_DIR}/syscalls.c ${STARTUP_FILE})
 target_link_libraries(pps_app PRIVATE pps pps_bsp)

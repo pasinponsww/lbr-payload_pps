@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file pps_config.h
+ * @file config.h
  * @brief Mission constants for the payload positioning system
  * @note Everything that depends on the mechanism or needs bench tuning is
  *       reachable from here; the state machine itself carries no numbers.
@@ -9,10 +9,10 @@
  */
 
 #include <cstdint>
-#include "control/travel.h"
 #include "fdir/fdir.h"
 #include "fdir/recovery.h"
-#include "sensor/flight_detector.h"
+#include "motion/travel.h"
+#include "sensor/flight.h"
 
 namespace LBR
 {

@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include "simulator.h"
+#include "sim.h"
 
 namespace
 {

@@ -1,14 +1,14 @@
 #pragma once
 /**
- * @file flight_detector.h
+ * @file flight.h
  * @brief Launch and landing detection from IMU data
  * @author Bex Saw
  * @date 2026/11/15
  */
 
 #include <cstdint>
-#include "dwell.h"
-#include "sensor_frame.h"
+#include "debounce.h"
+#include "sensors.h"
 
 namespace LBR
 {
@@ -27,14 +27,14 @@ struct FlightConfig
     uint32_t max_flight_ms{600000};  ///< landed is assumed after this long
 };
 
-class FlightDetector
+class Flight
 {
 public:
     /**
      * @brief Build a detector
      * @param config detection thresholds
      */
-    explicit FlightDetector(const FlightConfig& config);
+    explicit Flight(const FlightConfig& config);
 
     /**
      * @brief Restart detection, call when entering Standby or Flight

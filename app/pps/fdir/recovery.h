@@ -11,7 +11,7 @@
 
 #include <cstdint>
 #include "fdir/fdir.h"
-#include "motor_support/dc_motor.h"
+#include "motion/motor.h"
 
 namespace LBR
 {

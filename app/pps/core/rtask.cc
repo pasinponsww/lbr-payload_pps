@@ -7,8 +7,7 @@ Rtask::Rtask(const Board& board)
     : sensors_(board.sensors, kSensorConfig),
       pps_(board.motor, kPpsConfig),
       console_(board.console, pps_),
-      control_(sensors_, pps_),
-      indicator_(board.leds, pps_)
+      leds_(board.leds)
 {
 }
 
@@ -25,15 +24,30 @@ bool Rtask::spin(uint32_t now_ms)
     }
     next_ms_ += kPeriodMs;
 
-    control_.run(now_ms);
+    pps_.step(sensors_.sample(now_ms, pps_.wants_imu()));
     console_.poll(now_ms);
-    indicator_.run();
+    indicate();
     return true;
 }
 
 bool Rtask::abort()
 {
     return pps_.command(PpsCommand::Abort);
+}
+
+bool Rtask::indicate()
+{
+    const PpsState state = pps_.status().state;
+    const bool faulted =
+        state == PpsState::Recovery || state == PpsState::Safed;
+
+    bool ok = leds_.red.set(faulted);
+    ok = leds_.green.set(state == PpsState::Holding) && ok;
+    if (tick_++ % kHeartbeatTicks == 0)
+    {
+        ok = leds_.blue.toggle() && ok;
+    }
+    return ok;
 }
 
 }  // namespace LBR

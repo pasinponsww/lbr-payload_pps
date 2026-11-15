@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file dc_motor.h
+ * @file motor.h
  * @brief Brushed DC motor actuator with encoder position feedback
  * @note Non-blocking: every call returns immediately, the caller owns timing.
  * @author Bex Saw

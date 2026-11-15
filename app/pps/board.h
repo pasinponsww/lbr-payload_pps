@@ -1,20 +1,31 @@
 /**
  * @file board.h
  * @brief Hardware the PPS application needs, provided by the board support
- *        package (see pps_bsp/l476_board.cc)
+ *        package (see bsp/l476.cc)
  * @author Bex Saw
  * @date 1/13/2026
  */
 
 #pragma once
 #include <cstdint>
-#include "motor_support/dc_motor.h"
-#include "sensor/sensor_manager.h"
-#include "task/indicator_task.h"
+#include "gpio.h"
+#include "motion/motor.h"
+#include "sensor/sensors.h"
 #include "uart.h"
 
 namespace LBR
 {
+
+/**
+ * @struct StatusLeds
+ * @brief The three debug LEDs on the board
+ */
+struct StatusLeds
+{
+    Gpio& red;    ///< on while recovering or safed
+    Gpio& green;  ///< on while holding the deployed position
+    Gpio& blue;   ///< heartbeat, toggles while the loop is running
+};
 
 /**
  * @struct Board

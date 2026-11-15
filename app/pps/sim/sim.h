@@ -1,6 +1,6 @@
 #pragma once
 /**
- * @file simulator.h
+ * @file sim.h
  * @brief The PPS application running on the simulated plant
  * @note Uses the same Rtask as the firmware; only the hardware underneath
  *       the Board is simulated.
@@ -12,10 +12,10 @@
 #include <string_view>
 #include "bno055_imu.h"
 #include "board.h"
+#include "core/rtask.h"
 #include "drv8245.h"
-#include "motor_support/dc_motor.h"
+#include "motion/motor.h"
 #include "plant.h"
-#include "task/rtask.h"
 
 namespace LBR::Sim
 {

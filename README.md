@@ -49,15 +49,13 @@ Deploying / Retracting --fault--> Recovery --> retry | retract (fallback) | Safe
 | Path | Contents |
 | --- | --- |
 | `app/pps/main.cc` | board bring-up, then `rtask.spin()` forever |
-| `app/pps/task/` | `Rtask` owns the application and runs the control and indicator tasks every 10 ms |
-| `app/pps/sensor/` | `SensorManager` reads every sensor into one frame per tick; debounce and flight detection |
-| `app/pps/pps.*` | payload state machine, sequencing only |
-| `app/pps/control/` | `Travel` (motion between the limit switches) and the PID loop |
-| `app/pps/fdir/` | fault detection and policy, and the recovery sequence |
-| `app/pps/motor_support/` | DC motor actuator with encoder feedback |
-| `app/pps/console/` | serial command console |
-| `app/pps/pps_config.h` | every mission constant and tuning value |
-| `app/pps/pps_bsp/` | pin map and hardware bring-up for the L476 board |
+| `app/pps/board.h` | the hardware the application needs from a board |
+| `app/pps/config.h` | every mission constant and tuning value |
+| `app/pps/core/` | `pps` (state machine), `rtask` (10 ms runner that owns the application), `console` |
+| `app/pps/motion/` | `motor`, `pid`, and `travel` (motion between the limit switches) |
+| `app/pps/sensor/` | `sensors` (one frame per tick), `debounce`, `flight` (launch and landing detection) |
+| `app/pps/fdir/` | `fdir` (fault detection and policy) and `recovery` |
+| `app/pps/bsp/` | pin map and hardware bring-up for the L476 board |
 | `app/pps/sim/` | PC simulator of the mechanism |
 | `tools/ppsctl/` | command-line tool (Rust) |
 | `xtask/` | `cargo xtask` build, flash and control tasks |

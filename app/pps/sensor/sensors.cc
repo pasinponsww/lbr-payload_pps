@@ -1,17 +1,16 @@
-#include "sensor_manager.h"
+#include "sensors.h"
 
 namespace LBR
 {
 
-SensorManager::SensorManager(const SensorSet& sensors,
-                             const SensorConfig& config)
+Sensors::Sensors(const SensorSet& sensors, const SensorConfig& config)
     : limit_retracted_(sensors.limit_retracted, config.switch_debounce_ms),
       limit_extended_(sensors.limit_extended, config.switch_debounce_ms),
       imu_(sensors.imu)
 {
 }
 
-const SensorFrame& SensorManager::sample(uint32_t now_ms, bool read_imu)
+const SensorFrame& Sensors::sample(uint32_t now_ms, bool read_imu)
 {
     frame_.now_ms = now_ms;
     frame_.at_retracted = limit_retracted_.sample(now_ms);
@@ -31,7 +30,7 @@ const SensorFrame& SensorManager::sample(uint32_t now_ms, bool read_imu)
     return frame_;
 }
 
-const SensorFrame& SensorManager::frame() const
+const SensorFrame& Sensors::frame() const
 {
     return frame_;
 }

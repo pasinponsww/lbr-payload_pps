@@ -1,4 +1,4 @@
-#include "dc_motor.h"
+#include "motor.h"
 #include <algorithm>
 #include <cstdlib>
 
